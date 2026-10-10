@@ -7,6 +7,26 @@ import Simulator from './Simulator.jsx';
 import PatienceMeter from './PatienceMeter.jsx';
 import { TIER_LABEL, fmtHours } from '../format.js';
 
+function customerEventSummary(ev) {
+  const data = ev.data || {};
+  if (ev.event_type === 'case.opened') return `Cotización enviada por ${fmtMoney(data.proposal_amount_mxn)}`;
+  if (ev.event_type === 'action.executed') return `Acción realizada: ${ACTION_LABEL[data.action] ?? 'Actividad del equipo'}`;
+  if (ev.event_type === 'proposal.viewed') {
+    const section = { price: 'Precio', installation: 'Instalación', warranty: 'Garantía', financing: 'Financiamiento', delivery: 'Entrega' }[data.section];
+    return section ? `Sección consultada: ${section}` : 'El cliente revisó la cotización';
+  }
+  return eventSummary(ev);
+}
+
+function revealEvidence(id) {
+  const item = document.getElementById(`ev-${id}`);
+  const container = item?.closest('.timeline-scroll');
+  if (!container) return;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  container.scrollTo({ top: container.scrollTop + item.getBoundingClientRect().top - container.getBoundingClientRect().top - 12, behavior: reducedMotion ? 'auto' : 'smooth' });
+  container.focus({ preventScroll: true });
+}
+
 const fmtStageHours = (h) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24 * 10) / 10} días`);
 
 function StagePath({ stages }) {
@@ -26,7 +46,7 @@ function StagePath({ stages }) {
               {t.hours !== null ? fmtStageHours(t.hours) : ['comprada', 'perdida'].includes(t.stage) ? 'Final' : '—'}
               {i === last && t.hours !== null ? ' hasta ahora' : ''}
             </span>
-            <span className="stage-why muted small">{t.why} <code>{t.event_id}</code></span>
+            <span className="stage-why muted small">{t.why}</span>
           </li>
         ))}
       </ol>
@@ -120,18 +140,13 @@ function DecisionHero({ rec, trace, evaluatedAt }) {
           <span className="fact-label">Revisión humana</span>
           <span className="fact-value">{rec.requires_human_review ? 'Sí' : 'No'}</span>
         </div>
-        <div className="hero-code">
-          <code>{rec.action}</code>
-          <code>{rec.timing}</code>
-          {rec.scheduled_for && <code>{rec.scheduled_for}</code>}
-        </div>
       </div>
       {trace?.guardian?.replaced && (
         <p className="hero-warning">
           El validador reemplazó la recomendación original ({trace.guardian.replaced_reason}).
         </p>
       )}
-      <p className="hero-evaluated">Evaluado con la hora {fmtUtc(evaluatedAt)}</p>
+      <p className="hero-evaluated">Última evaluación: {fmtUtc(evaluatedAt)}</p>
     </section>
   );
 }
@@ -141,7 +156,7 @@ function ActionBoard({ rec, rules, trace }) {
     <section className="board" aria-label="Acciones permitidas y bloqueadas">
       <div className="section-head">
         <h3>Qué permiten las reglas ahora</h3>
-        <p className="muted">Calculado con código determinístico (R1–R4 y solicitudes del cliente) antes de publicar.</p>
+        <p className="muted">Las opciones disponibles respetan las preferencias del cliente y las políticas de contacto.</p>
       </div>
       <ol className="tiles">
         {ACTIONS.map((a) => {
@@ -156,9 +171,8 @@ function ActionBoard({ rec, rules, trace }) {
               title={ACTION_HINT[a]}
             >
               <span className="tile-name">{ACTION_LABEL[a]}</span>
-              <code className="tile-code">{a}</code>
               <span className="tile-state">
-                {chosen ? 'Elegida' : allowed ? 'Permitida' : `Bloqueada por ${[...new Set(info.blocks.map((b) => b.rule))].join(', ')}`}
+                {chosen ? 'Elegida' : allowed ? 'Permitida' : 'No disponible'}
               </span>
               {suggestedBlocked && <span className="tile-note">Era lo ideal, pero una regla lo impide</span>}
             </li>
@@ -169,7 +183,7 @@ function ActionBoard({ rec, rules, trace }) {
         <ul className="restrictions">
           {rules.restrictions.map((r) => (
             <li key={`${r.rule}-${r.until}`}>
-              <span className="rule-tag">{r.rule === 'CLIENTE' ? 'Cliente' : r.rule}</span>
+              <span className="rule-tag">{r.rule === 'CLIENTE' ? 'Cliente' : 'Política'}</span>
               <span>{r.message}</span>
             </li>
           ))}
@@ -188,7 +202,7 @@ function WhyPanel({ rec, trace, onHover }) {
       <div className="why-evidence">
         <span className="fact-label">Evidencia</span>
         <div className="chips">
-          {rec.evidence_event_ids.map((id) => (
+          {rec.evidence_event_ids.map((id, index) => (
             <button
               key={id}
               type="button"
@@ -197,9 +211,9 @@ function WhyPanel({ rec, trace, onHover }) {
               onMouseLeave={() => onHover(null)}
               onFocus={() => onHover(id)}
               onBlur={() => onHover(null)}
-              onClick={() => document.getElementById(`ev-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              onClick={() => revealEvidence(id)}
             >
-              {id}
+              Actividad {index + 1}
             </button>
           ))}
         </div>
@@ -238,7 +252,7 @@ function ChangePanel({ current, previous }) {
         <h3>Qué cambió desde la decisión anterior</h3>
         <p className="muted">
           Antes evaluado con {fmtUtc(previous.evaluation_at)}
-          {current.new_event_ids?.length ? `; eventos nuevos: ${current.new_event_ids.join(', ')}` : '; sin eventos nuevos (cambió la hora de evaluación)'}.
+          {current.new_event_ids?.length ? `; ${current.new_event_ids.length} actividades nuevas` : '; sin eventos nuevos (cambió la hora de evaluación)'}.
         </p>
       </div>
       {changes.length === 0 ? (
@@ -309,8 +323,9 @@ function Timeline({ events, interpretations, evidence, highlighted, newIds, hasP
     <section className="timeline" aria-label="Historial del caso">
       <div className="section-head">
         <h3>Historial</h3>
-        <p className="muted">En el orden en que llegaron los eventos. Lo marcado en amarillo respalda la recomendación.</p>
+        <p className="muted">{events.length} actividades. Desplázate aquí para revisar el historial; las destacadas respaldan la recomendación.</p>
       </div>
+      <div className="timeline-scroll" tabIndex={0} role="region" aria-label="Actividades de la cotización">
       <ol>
         {events.map((ev) => {
           const isEvidence = evidence.includes(ev.event_id);
@@ -323,19 +338,19 @@ function Timeline({ events, interpretations, evidence, highlighted, newIds, hasP
             >
               <div className="tl-meta">
                 <span className="tl-time">{fmtUtc(ev.occurred_at, { withYear: false })}</span>
-                <code className="tl-id">{ev.event_id}</code>
                 {hasPrevious && newIds?.includes(ev.event_id) && <span className="flag flag-changed">Nuevo</span>}
               </div>
               <div className="tl-body">
                 <span className="tl-type">{EVENT_LABEL[ev.event_type]}</span>
-                <p className={ev.event_type === 'message.received' ? 'tl-message' : 'tl-text'}>{eventSummary(ev)}</p>
-                {ev.event_type === 'message.received' && <Interpretation it={interpretations?.[ev.event_id]} />}
+                <p className={ev.event_type === 'message.received' ? 'tl-message' : 'tl-text'}>{customerEventSummary(ev)}</p>
+                {ev.event_type === 'message.received' && interpretations?.[ev.event_id] && <details className="timeline-analysis"><summary>Ver análisis del mensaje</summary><Interpretation it={interpretations[ev.event_id]} /></details>}
                 {warning.map((w) => <p key={w.message} className="tl-warning">{w.message}</p>)}
               </div>
             </li>
           );
         })}
       </ol>
+      </div>
     </section>
   );
 }
@@ -364,7 +379,7 @@ function TracePanel({ trace, rec }) {
             : `No hay mensaje pendiente; se usó ${basis}.`}
         </li>
         <li>
-          <strong>Acción sugerida:</strong> {ACTION_LABEL[trace.ideal.action]} <code>{trace.ideal.action}</code>, basada en {basis}.
+          <strong>Acción sugerida:</strong> {ACTION_LABEL[trace.ideal.action]}, basada en {basis}.
         </li>
         <li>
           <strong>Reglas.</strong>{' '}
@@ -459,7 +474,7 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
           <div className="case-columns">
             <div className="col-left">
               <WhyPanel rec={rec} trace={d?.trace} onHover={setHighlighted} />
-              <TracePanel trace={d?.trace} rec={rec} />
+              <details className="case-more"><summary>Ver cómo se decidió</summary><TracePanel trace={d?.trace} rec={rec} /></details>
             </div>
             <div className="col-right">
               <Timeline
