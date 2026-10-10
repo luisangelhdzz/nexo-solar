@@ -116,6 +116,14 @@ export function createPostgresStorage(databaseUrl) {
       const { rows } = await pool.query('SELECT DISTINCT case_id FROM events ORDER BY case_id');
       return rows.map((r) => r.case_id);
     },
+    async getEventsByCase() {
+      const { rows } = await pool.query(
+        'SELECT event_id, case_id, event_type, occurred_at, data, seq, batch_id FROM events ORDER BY case_id, seq',
+      );
+      const grouped = {};
+      for (const r of rows) (grouped[r.case_id] ||= []).push({ ...r, seq: Number(r.seq), batch_id: r.batch_id === null ? null : Number(r.batch_id) });
+      return grouped;
+    },
     async getCaseEvents(caseId) {
       const { rows } = await pool.query(
         'SELECT event_id, case_id, event_type, occurred_at, data, seq, batch_id FROM events WHERE case_id = $1 ORDER BY seq',

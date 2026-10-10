@@ -69,12 +69,14 @@ export default function App() {
 
   const refresh = useCallback(async ({ focusCase, focusCustomer } = {}) => {
     const c = await api.cases(); // primero: en modo en vivo reevalúa y deja todo al día
-    const [s, sum, cus, ins] = await Promise.all([api.status(), api.summary(), api.customers(), api.insights()]);
-    setStatus(s);
     setCases(c.cases);
-    setSummary(sum);
-    setCustomers(cus.customers);
-    setInsights(ins);
+    // Cada panel se muestra al terminar su consulta; aprendizaje no bloquea el resumen.
+    const [, , cus] = await Promise.all([
+      api.status().then((s) => { setStatus(s); return s; }),
+      api.summary().then((sum) => { setSummary(sum); return sum; }),
+      api.customers().then((cus) => { setCustomers(cus.customers); return cus; }),
+      api.insights().then((ins) => { setInsights(ins); return ins; }),
+    ]);
 
     const firstOpen = c.cases.find((x) => x.status !== 'closed')?.case_id ?? c.cases[0]?.case_id ?? null;
     const caseTarget = focusCase ?? sel.current.caseId ?? firstOpen;

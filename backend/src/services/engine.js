@@ -92,14 +92,14 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
     return { caseToCustomer: map, byCustomer };
   }
 
-  async function profileFor(customerId, { excludeCaseId = null, evaluationAt, index } = {}) {
+  async function profileFor(customerId, { excludeCaseId = null, evaluationAt, index, eventsByCase, customersById } = {}) {
     if (!customerId) return null;
-    const customer = await storage.getCustomer(customerId);
+    const customer = customersById ? customersById[customerId] : await storage.getCustomer(customerId);
     if (!customer) return null;
     const idx = index ?? (await customerIndex());
     const states = [];
     for (const caseId of idx.byCustomer[customerId] ?? []) {
-      states.push(buildCaseState(caseId, await storage.getCaseEvents(caseId)));
+      states.push(buildCaseState(caseId, eventsByCase ? eventsByCase[caseId] ?? [] : await storage.getCaseEvents(caseId)));
     }
     const profile = buildCustomerProfile(customer, states, { excludeCaseId, nowIso: evaluationAt });
     profile.patience_window_hours = profile.patience_hours ? Math.ceil(profile.patience_hours * (policy.patienceMargin ?? 1.2)) : null;
@@ -137,10 +137,12 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
 
   const analysisCache = new Map(); // case_id -> { key, analysis, state }
   // Análisis de todas las cotizaciones cerradas antes de `untilIso`.
-  async function closedAnalyses(untilIso, { index, latest }) {
+  async function closedAnalyses(untilIso, { index, latest, eventsByCase, customersById }) {
+    eventsByCase ??= await storage.getEventsByCase();
+    customersById ??= Object.fromEntries((await storage.listCustomers()).map((c) => [c.customer_id, c]));
     const out = [];
-    for (const id of await storage.listCaseIds()) {
-      const events = await storage.getCaseEvents(id);
+    for (const id of Object.keys(eventsByCase).sort()) {
+      const events = eventsByCase[id];
       if (!events.length) continue;
       const state = buildCaseState(id, events);
       if (state.status !== 'closed' || !state.closed_at || (untilIso && toMs(state.closed_at) > toMs(untilIso))) continue;
@@ -153,7 +155,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       const interpretations = latest[id]?.detail?.interpretations ?? (await interpretCase(state, storage, provider));
       const stages = buildStages(state, interpretations, state.closed_at);
       const decisions = await storage.decisionHistory(id, 50);
-      const customer = await profileFor(index.caseToCustomer[id] ?? null, { excludeCaseId: id, evaluationAt: state.closed_at, index });
+      const customer = await profileFor(index.caseToCustomer[id] ?? null, { excludeCaseId: id, evaluationAt: state.closed_at, index, eventsByCase, customersById });
       const analysis = analyzeOutcome({ state, interpretations, stages, decisions, customer });
       const entry = { key, analysis, state };
       analysisCache.set(id, entry);
@@ -209,9 +211,11 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
 
   async function evaluateNow({ caseIds = null, force = false } = {}) {
     const evaluationAt = await requireEvaluationAt();
-    const ids = caseIds ?? (await storage.listCaseIds());
-    const latest = await storage.latestDecisions();
-    const index = await customerIndex();
+    const [eventsByCase, latest, index, customers] = await Promise.all([
+      storage.getEventsByCase(), storage.latestDecisions(), customerIndex(), storage.listCustomers(),
+    ]);
+    const ids = caseIds ?? Object.keys(eventsByCase).sort();
+    const customersById = Object.fromEntries(customers.map((c) => [c.customer_id, c]));
     const results = [];
 
     const clockInfo = await getClock();
@@ -219,7 +223,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
     let learning = null;
     let lessonsAll = [];
     if (active) {
-      const closed = await closedAnalyses(evaluationAt, { index, latest });
+      const closed = await closedAnalyses(evaluationAt, { index, latest, eventsByCase, customersById });
       learning = computeLearning(closed, { defaults: { followUpHours: policy.followUpHours ?? 48 } });
       lessonsAll = await storage.listLessons({ limit: 50 });
       await recordLearningSnapshot(learning, evaluationAt);
@@ -233,11 +237,11 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       : policy;
 
     for (const caseId of ids) {
-      const events = await storage.getCaseEvents(caseId);
+      const events = eventsByCase[caseId] ?? [];
       if (!events.length) continue;
       const lastSeq = events[events.length - 1].seq;
       const customerId = index.caseToCustomer[caseId] ?? null;
-      const customer = await profileFor(customerId, { excludeCaseId: caseId, evaluationAt, index });
+      const customer = await profileFor(customerId, { excludeCaseId: caseId, evaluationAt, index, eventsByCase, customersById });
       const fingerprint = `${lastSeq}|${evaluationAt}|${providerKey}|${profileFingerprint(customer)}|L:${learning?.version ?? 'off'}`;
       const prev = latest[caseId] ?? null;
 
@@ -387,18 +391,15 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
   }
 
   async function listCases() {
-    const ids = await storage.listCaseIds();
-    const latest = await storage.latestDecisions();
-    const maxSeq = await storage.maxSeqByCase();
-    const clockInfo = await getClock();
-    const customersById = Object.fromEntries((await storage.listCustomers()).map((c) => [c.customer_id, c]));
-    const { caseToCustomer } = await customerIndex();
-    const out = [];
-    for (const id of ids) {
-      const events = await storage.getCaseEvents(id);
-      out.push(caseSummary(id, events, buildCaseState(id, events), latest[id] ?? null, maxSeq, clockInfo, customersById, caseToCustomer));
-    }
-    return out;
+    const [eventsByCase, latest, clockInfo, customers, index] = await Promise.all([
+      storage.getEventsByCase(), storage.latestDecisions(), getClock(), storage.listCustomers(), customerIndex(),
+    ]);
+    const customersById = Object.fromEntries(customers.map((c) => [c.customer_id, c]));
+    const maxSeq = Object.fromEntries(Object.entries(eventsByCase).map(([id, events]) => [id, events.at(-1)?.seq ?? 0]));
+    return Object.keys(eventsByCase).sort().map((id) => {
+      const events = eventsByCase[id];
+      return caseSummary(id, events, buildCaseState(id, events), latest[id] ?? null, maxSeq, clockInfo, customersById, index.caseToCustomer);
+    });
   }
 
   async function getCase(caseId) {
@@ -463,15 +464,14 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
 
   // Lista de clientes con su perfil, sus cotizaciones y la recomendación vigente de cada una.
   async function listCustomers() {
-    const customers = await storage.listCustomers();
-    const index = await customerIndex();
-    const latest = await storage.latestDecisions();
-    const evaluationAt = await getEvaluationAt();
+    const [customers, index, latest, evaluationAt, eventsByCase] = await Promise.all([
+      storage.listCustomers(), customerIndex(), storage.latestDecisions(), getEvaluationAt(), storage.getEventsByCase(),
+    ]);
     const out = [];
     for (const c of customers) {
       const caseIds = (index.byCustomer[c.customer_id] ?? []).sort();
       const states = [];
-      for (const id of caseIds) states.push(buildCaseState(id, await storage.getCaseEvents(id)));
+      for (const id of caseIds) states.push(buildCaseState(id, eventsByCase[id] ?? []));
       const profile = buildCustomerProfile(c, states, { nowIso: evaluationAt });
       profile.patience_window_hours = profile.patience_hours ? Math.ceil(profile.patience_hours * (policy.patienceMargin ?? 1.2)) : null;
       const cases = states.map((s) => ({
@@ -524,8 +524,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
 
   // Resumen para el dashboard, centrado en la inacción.
   async function summary() {
-    const cases = await listCases();
-    const clockInfo = await getClock();
+    const [cases, clockInfo, invoices] = await Promise.all([listCases(), getClock(), storage.listInvoices()]);
     const evaluated = cases.filter((c) => c.recommendation);
     const open = evaluated.filter((c) => c.status !== 'closed');
     const byAction = {};
@@ -535,7 +534,6 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       .filter((c) => c.recommendation.timing === 'at_date' && c.recommendation.scheduled_for)
       .sort((a, b) => toMs(a.recommendation.scheduled_for) - toMs(b.recommendation.scheduled_for))
       .map((c) => ({ case_id: c.case_id, customer_name: c.customer_name, action: c.recommendation.action, scheduled_for: c.recommendation.scheduled_for, basis: c.basis }));
-    const invoices = await storage.listInvoices();
     return {
       clock: clockInfo,
       totals: {
@@ -581,18 +579,17 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
 
   // Pestaña Aprendizaje: embudo, qué separa compras de pérdidas, lecciones y tiempos aprendidos.
   async function insights() {
-    const clockInfo = await getClock();
-    const latest = await storage.latestDecisions();
-    const index = await customerIndex();
-    const closed = await closedAnalyses(clockInfo.evaluation_at, { index, latest });
+    const [clockInfo, latest, index, eventsByCase, settings] = await Promise.all([
+      getClock(), storage.latestDecisions(), customerIndex(), storage.getEventsByCase(), storage.getSettings(),
+    ]);
+    const closed = await closedAnalyses(clockInfo.evaluation_at, { index, latest, eventsByCase });
     const learning = computeLearning(closed, { defaults: { followUpHours: policy.followUpHours ?? 48 } });
-    const settings = await storage.getSettings();
 
     // Embudo: cuántas cotizaciones llegaron a cada etapa y dónde están las abiertas.
     const funnel = Object.fromEntries(STAGES.map((st) => [st, { stage: st, label: STAGE_LABEL[st], reached: 0, open_now: 0 }]));
     let open = 0;
-    for (const id of await storage.listCaseIds()) {
-      const events = await storage.getCaseEvents(id);
+    for (const id of Object.keys(eventsByCase).sort()) {
+      const events = eventsByCase[id];
       if (!events.length) continue;
       const state = buildCaseState(id, events);
       const stages = buildStages(state, latest[id]?.detail?.interpretations ?? {}, clockInfo.evaluation_at);

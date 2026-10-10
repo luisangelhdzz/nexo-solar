@@ -65,6 +65,11 @@ export function createMemoryStorage() {
     async listCaseIds() {
       return [...new Set([...events.values()].map((e) => e.case_id))].sort();
     },
+    async getEventsByCase() {
+      const grouped = {};
+      for (const ev of [...events.values()].sort((a, b) => a.seq - b.seq)) (grouped[ev.case_id] ||= []).push(ev);
+      return grouped;
+    },
     async getCaseEvents(caseId) {
       return [...events.values()].filter((e) => e.case_id === caseId).sort((a, b) => a.seq - b.seq);
     },
