@@ -47,6 +47,31 @@ function rowToLesson(r) {
   return { ...r, created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at };
 }
 
+const isoOf = (v) => (v instanceof Date ? v.toISOString() : v);
+
+function rowToRun(r) {
+  return {
+    id: Number(r.id),
+    case_id: r.case_id,
+    run_key: r.run_key,
+    origin: r.origin,
+    last_seq: r.last_seq === null ? null : Number(r.last_seq),
+    status: r.status,
+    source: r.source,
+    model: r.model,
+    knowledge_version: r.knowledge_version,
+    proposal: r.proposal,
+    validation: r.validation,
+    result: r.result,
+    created_at: isoOf(r.created_at),
+    updated_at: isoOf(r.updated_at),
+  };
+}
+
+function rowToFeedback(r) {
+  return { ...r, id: Number(r.id), run_id: r.run_id === null ? null : Number(r.run_id), created_at: isoOf(r.created_at) };
+}
+
 export function createPostgresStorage(databaseUrl) {
   const pool = new pg.Pool({ ...postgresConnectionOptions(databaseUrl), max: 5, connectionTimeoutMillis: 10000 });
 
@@ -274,8 +299,64 @@ export function createPostgresStorage(databaseUrl) {
       return rows.map(rowToLesson);
     },
 
+    // Asistente: propuestas y correcciones del equipo.
+    async saveAssistantRun(run) {
+      const { rows } = await pool.query(
+        `INSERT INTO assistant_runs (case_id, run_key, origin, last_seq, status, source, model, knowledge_version, proposal, validation, result)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (run_key) DO NOTHING
+         RETURNING *`,
+        [run.case_id, run.run_key ?? null, run.origin, run.last_seq ?? null, run.status, run.source, run.model ?? null, run.knowledge_version ?? null,
+          JSON.stringify(run.proposal ?? {}), JSON.stringify(run.validation ?? {}), JSON.stringify(run.result ?? {})],
+      );
+      if (rows[0]) return rowToRun(rows[0]);
+      // Otro proceso ya guardó este mismo trabajo (por ejemplo, dos servidores con la misma base).
+      const existing = await this.findAssistantRunByKey(run.run_key);
+      return existing ? { ...existing, reused: true } : null;
+    },
+    async updateAssistantRun(id, patch) {
+      const fields = [];
+      const values = [id];
+      for (const [k, v] of Object.entries(patch)) {
+        if (!['status', 'result', 'validation'].includes(k)) continue;
+        values.push(k === 'status' ? v : JSON.stringify(v));
+        fields.push(`${k} = $${values.length}`);
+      }
+      if (!fields.length) return null;
+      const { rows } = await pool.query(`UPDATE assistant_runs SET ${fields.join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`, values);
+      return rows[0] ? rowToRun(rows[0]) : null;
+    },
+    async getAssistantRun(id) {
+      const { rows } = await pool.query('SELECT * FROM assistant_runs WHERE id = $1', [id]);
+      return rows[0] ? rowToRun(rows[0]) : null;
+    },
+    async findAssistantRunByKey(key) {
+      if (!key) return null;
+      const { rows } = await pool.query('SELECT * FROM assistant_runs WHERE run_key = $1', [key]);
+      return rows[0] ? rowToRun(rows[0]) : null;
+    },
+    async listAssistantRuns({ case_id: caseId = null, limit = 50 } = {}) {
+      const { rows } = await pool.query(
+        'SELECT * FROM assistant_runs WHERE ($1::text IS NULL OR case_id = $1) ORDER BY id DESC LIMIT $2',
+        [caseId, limit],
+      );
+      return rows.map(rowToRun);
+    },
+    async saveAssistantFeedback(f) {
+      const { rows } = await pool.query(
+        `INSERT INTO assistant_feedback (run_id, case_id, situation, draft, final_message, edited)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [f.run_id ?? null, f.case_id, JSON.stringify(f.situation ?? {}), f.draft ?? null, f.final_message, Boolean(f.edited)],
+      );
+      return rowToFeedback(rows[0]);
+    },
+    async listAssistantFeedback({ limit = 50 } = {}) {
+      const { rows } = await pool.query('SELECT * FROM assistant_feedback ORDER BY id DESC LIMIT $1', [limit]);
+      return rows.map(rowToFeedback);
+    },
+
     async reset() {
-      await pool.query('TRUNCATE lessons, invoices, customers, decisions, interpretations, events, ingest_batches, settings RESTART IDENTITY CASCADE');
+      await pool.query('TRUNCATE assistant_feedback, assistant_runs, lessons, invoices, customers, decisions, interpretations, events, ingest_batches, settings RESTART IDENTITY CASCADE');
     },
   };
 }

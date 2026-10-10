@@ -5,11 +5,14 @@ import express from 'express';
 import cors from 'cors';
 import { createApiRouter, apiErrorHandler } from './routes/api.js';
 import { createPortal } from './portal/service.js';
+import { createAssistant } from './services/assistant.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
 
-export function createApp(engine, { adminPassword = '', sendInvoice } = {}) {
+// `assistant`: opciones del asistente (proveedor, modo…), útiles en pruebas. El trabajo en segundo
+// plano del asistente solo arranca con app.locals.assistant.start() (lo hace server.js).
+export function createApp(engine, { adminPassword = '', sendInvoice, assistant: assistantOptions = {} } = {}) {
   const app = express();
   app.set('trust proxy', 1); // detrás del proxy de Render u otra nube
   app.disable('x-powered-by');
@@ -18,8 +21,17 @@ export function createApp(engine, { adminPassword = '', sendInvoice } = {}) {
   app.use(express.text({ type: ['text/plain', 'application/x-ndjson', 'application/jsonl'], limit: '5mb' }));
 
   const storage = engine.storage;
-  const portal = createPortal({ engine, storage, ...(sendInvoice ? { sendInvoice } : {}) });
-  app.use('/api', createApiRouter(engine, { portal, storage, adminPassword }));
+  const hooks = {};
+  const portal = createPortal({
+    engine,
+    storage,
+    ...(sendInvoice ? { sendInvoice } : {}),
+    onActivity: (caseId, origin) => hooks.onActivity?.(caseId, origin),
+  });
+  const assistant = createAssistant({ engine, storage, portal, ...assistantOptions });
+  hooks.onActivity = assistant.onActivity;
+  app.locals.assistant = assistant;
+  app.use('/api', createApiRouter(engine, { portal, storage, adminPassword, assistant }));
   app.use('/api', apiErrorHandler);
 
   // Si el frontend ya se compiló (npm run build), el backend lo sirve en el mismo puerto:

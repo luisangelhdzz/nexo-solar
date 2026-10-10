@@ -12,7 +12,10 @@
     "dev": "node --watch src/server.js",
     "test": "node --test --test-reporter=spec",
     "evaluate": "node src/cli/evaluate.js",
-    "db:init": "node src/storage/init-db.js"
+    "db:init": "node src/storage/init-db.js",
+    "ai:check": "node src/cli/check-ai.js",
+    "ai:eval": "node src/cli/eval-assistant.js",
+    "ai:diagnose": "node src/cli/diagnose-ai.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

@@ -16,6 +16,10 @@ export function createMemoryStorage() {
   let invoices = [];
   let invoiceSeq = 0;
   let lessons = new Map();
+  let assistantRuns = [];
+  let assistantRunSeq = 0;
+  let feedback = [];
+  let feedbackSeq = 0;
 
   return {
     kind: 'memory',
@@ -171,7 +175,50 @@ export function createMemoryStorage() {
         .slice(0, limit);
     },
 
+    // Asistente: cada propuesta y lo que pasó con ella. run_key evita repetir el mismo trabajo.
+    async saveAssistantRun(run) {
+      const existing = run.run_key ? assistantRuns.find((r) => r.run_key === run.run_key) : null;
+      if (existing) return { ...existing, reused: true };
+      assistantRunSeq += 1;
+      const now = new Date().toISOString();
+      const row = { ...run, id: assistantRunSeq, created_at: now, updated_at: now };
+      assistantRuns.push(row);
+      return { ...row };
+    },
+    async updateAssistantRun(id, patch) {
+      const row = assistantRuns.find((r) => r.id === id);
+      if (!row) return null;
+      for (const k of ['status', 'result', 'validation']) if (k in patch) row[k] = patch[k];
+      row.updated_at = new Date().toISOString();
+      return { ...row };
+    },
+    async getAssistantRun(id) {
+      const row = assistantRuns.find((r) => r.id === id);
+      return row ? { ...row } : null;
+    },
+    async findAssistantRunByKey(key) {
+      const row = assistantRuns.find((r) => r.run_key === key);
+      return row ? { ...row } : null;
+    },
+    async listAssistantRuns({ case_id: caseId = null, limit = 50 } = {}) {
+      return assistantRuns.filter((r) => !caseId || r.case_id === caseId).sort((a, b) => b.id - a.id).slice(0, limit).map((r) => ({ ...r }));
+    },
+    // Correcciones del equipo a los borradores (ejemplos para el asistente; no reentrenan el modelo).
+    async saveAssistantFeedback(f) {
+      feedbackSeq += 1;
+      const row = { ...f, id: feedbackSeq, created_at: new Date().toISOString() };
+      feedback.push(row);
+      return { ...row };
+    },
+    async listAssistantFeedback({ limit = 50 } = {}) {
+      return [...feedback].sort((a, b) => b.id - a.id).slice(0, limit).map((f) => ({ ...f }));
+    },
+
     async reset() {
+      assistantRuns = [];
+      assistantRunSeq = 0;
+      feedback = [];
+      feedbackSeq = 0;
       lessons = new Map();
       customers = new Map();
       invoices = [];

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { fmtMoney, fmtUtc } from '../format.js';
+import AssistantPanel from './AssistantPanel.jsx';
 
 const CHANNEL = { email: 'Correo', whatsapp: 'WhatsApp', phone: 'Llamada' };
 
@@ -10,6 +11,8 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
   const [options, setOptions] = useState([]);
   const [form, setForm] = useState({ package_id: '', title: '', amount_mxn: '', notes: '' });
   const [message, setMessage] = useState('');
+  // Borrador del asistente que se está usando: al enviar, el backend guarda si el equipo lo corrigió.
+  const [assistantRunId, setAssistantRunId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -19,7 +22,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
   const blocked = state.status === 'closed' || current?.detail?.rules?.contact_blocked;
   const run = async (fn) => {
     setSaving(true); setError('');
-    try { const updated = await fn(); await onUpdate(updated); setMessage(''); }
+    try { const updated = await fn(); await onUpdate(updated); setMessage(''); setAssistantRunId(null); }
     catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -50,10 +53,11 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
         <label>Alcance y condiciones particulares<textarea rows={3} maxLength={1500} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Describe qué incluye la solución y qué debe confirmarse en la visita técnica." /></label>
         <button className="btn btn-primary" disabled={blocked || saving || busy}>{saving ? 'Publicando…' : 'Publicar propuesta en el portal'}</button>
       </form>}
-      {state.status !== 'closed' && <form className="proposal-form" onSubmit={(e) => { e.preventDefault(); run(() => api.reply(detail.case_id, { message, action: current?.recommendation?.action })); }}>
-        <label>Mensaje para el cliente<textarea rows={3} maxLength={1000} required value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Responde una duda o pide los datos que faltan." /></label>
+      {state.status !== 'closed' && <AssistantPanel detail={detail} disabled={saving || busy} onUseDraft={(text, runId) => { setMessage(text); setAssistantRunId(runId); }} />}
+      {state.status !== 'closed' && <form className="proposal-form" onSubmit={(e) => { e.preventDefault(); run(() => api.reply(detail.case_id, { message, action: current?.recommendation?.action, ...(assistantRunId ? { assistant_run_id: assistantRunId } : {}) })); }}>
+        <label>Mensaje para el cliente<textarea rows={4} maxLength={1000} required value={message} onChange={(e) => { setMessage(e.target.value); if (!e.target.value.trim()) setAssistantRunId(null); }} placeholder="Responde una duda o pide los datos que faltan. También puedes partir del borrador del asistente." /></label>
+        {assistantRunId && <p className="muted small">Partiste del borrador del asistente: si lo cambias, la corrección se guarda como ejemplo para la próxima vez.</p>}
         <div className="kit-buttons">
-          <button type="button" className="btn" onClick={() => setMessage(state.proposal_pending && !intake?.monthly_bill_mxn ? 'Gracias por compartir tu proyecto. ¿Cuánto pagas aproximadamente por tu recibo de luz y qué periodo abarca? Con ese dato podremos preparar tu propuesta.' : 'Gracias por tu mensaje. Estamos revisando tu proyecto. ¿Hay algún dato adicional que quieras compartir sobre el espacio de instalación o tus necesidades?')}>Usar borrador de apoyo</button>
           <button className="btn btn-primary" disabled={blocked || saving || busy || !message.trim()}>{saving ? 'Enviando…' : 'Enviar mensaje al portal'}</button>
         </div>
         <p className="muted small">El mensaje se entrega en el portal. El correo y WhatsApp son preferencias registradas para futuras integraciones.</p>

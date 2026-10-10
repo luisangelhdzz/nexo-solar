@@ -96,3 +96,36 @@ CREATE TABLE IF NOT EXISTS lessons (
   analysis     JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Asistente comercial (Gemini u otra IA): cada propuesta, cómo se validó y qué se ejecutó.
+-- run_key (caso | último evento | decisión) evita repetir el mismo trabajo o enviar dos veces.
+CREATE TABLE IF NOT EXISTS assistant_runs (
+  id                 BIGSERIAL PRIMARY KEY,
+  case_id            TEXT NOT NULL,
+  run_key            TEXT UNIQUE,
+  origin             TEXT NOT NULL,
+  last_seq           BIGINT,
+  status             TEXT NOT NULL,
+  source             TEXT NOT NULL,
+  model              TEXT,
+  knowledge_version  TEXT,
+  proposal           JSONB NOT NULL,
+  validation         JSONB NOT NULL,
+  result             JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS assistant_runs_case_idx ON assistant_runs (case_id, id DESC);
+
+-- Correcciones del equipo a los borradores del asistente. Se usan como ejemplos en las siguientes
+-- propuestas; no cambian el modelo.
+CREATE TABLE IF NOT EXISTS assistant_feedback (
+  id             BIGSERIAL PRIMARY KEY,
+  run_id         BIGINT REFERENCES assistant_runs(id) ON DELETE SET NULL,
+  case_id        TEXT NOT NULL,
+  situation      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  draft          TEXT,
+  final_message  TEXT NOT NULL,
+  edited         BOOLEAN NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);

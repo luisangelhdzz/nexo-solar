@@ -11,7 +11,8 @@ import { isIsoUtc, toMs, humanUtc } from './time.js';
 const NEGATION = /\b(no|nadie|sin|ni|nunca|evitar|evite|prohibid[oa]|impide|impiden)\b[^.;:]{0,30}$/;
 
 // Frases que afirman intención de compra o presionan la venta (R5).
-const R5_PATTERNS = [
+// También las usa el asistente para revisar sus borradores (ai/assistant-checks.js).
+export const R5_PATTERNS = [
   /(ofrecer|aplicar|dar|otorgar|proponer)(le)? (un |el )?descuento/,
   /\burgente\b|\burgencia\b/,
   /[uú]ltima oportunidad/,
@@ -30,7 +31,7 @@ const CONTACT_PATTERNS = [
   /borrador (de|del) (mensaje|correo)/,
 ];
 
-function findAffirmative(text, patterns) {
+export function findAffirmative(text, patterns) {
   const lower = text.toLowerCase();
   for (const re of patterns) {
     const global = new RegExp(re.source, 'g');

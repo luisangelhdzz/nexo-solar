@@ -20,11 +20,19 @@ if (config.seedDemo) {
 
 const app = createApp(engine, { adminPassword: config.adminPassword });
 
+const ASSISTANT_MODE = {
+  off: 'solo cuando el equipo lo pide en la consola',
+  draft: 'prepara borradores solo; nunca envía (ASSISTANT_AUTOPILOT=draft)',
+  auto: 'envía solo lo que pasa todas las validaciones (ASSISTANT_AUTOPILOT=auto)',
+};
+
 app.listen(config.port, () => {
   const ai = providerStatus();
+  app.locals.assistant.start();
   console.log(`Nexo Solar en http://localhost:${config.port}  (consola: /   portal del cliente: /portal)`);
   console.log(`Almacenamiento: ${storage.kind === 'postgres' ? 'PostgreSQL' : 'memoria (se borra al reiniciar)'}`);
   console.log(`Interpretación: ${ai.mode === 'ai' ? `${ai.provider} (${ai.model})` : ai.note}`);
+  console.log(`Asistente: ${ASSISTANT_MODE[app.locals.assistant.mode]}${ai.mode === 'ai' ? '' : ' · sin IA, usa plantillas'}`);
   console.log(`Consola protegida con contraseña: ${config.adminPassword ? 'sí' : 'no (define ADMIN_PASSWORD al desplegar)'}`);
   console.log(`Envío de comprobantes por n8n: ${config.n8n.webhookUrl ? 'configurado' : 'no configurado'}`);
 });

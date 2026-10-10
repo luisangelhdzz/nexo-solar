@@ -6,7 +6,7 @@ Nexo Solar es una empresa ficticia que vende e instala paneles solares para nego
 
 El sistema recibe los eventos de cada cotización: apertura, vistas, mensajes del cliente, acciones de la empresa, restricciones y cierre. Con ellos recomienda **qué hacer después, cuándo y por qué**, incluido **no intervenir** cuando es lo correcto. Hace tres cosas:
 
-- Interpreta los mensajes del cliente con IA.
+- Interpreta los mensajes del cliente con IA (Gemini) y, con el **asistente comercial**, propone el siguiente paso y redacta borradores que el backend valida.
 - Aplica las reglas R1–R6 con código determinístico.
 - Valida cada recomendación antes de publicarla.
 - Sigue cada cotización por **etapas** y, al cerrarse, analiza **por qué se compró o no** para aprender de cada resultado.
@@ -26,7 +26,7 @@ Un solo servidor sirve dos pantallas:
 
 - **Node.js 18.17 o superior.** Se recomienda la versión 20 LTS; en macOS se instala desde nodejs.org o con `brew install node@20`.
 - **PostgreSQL (opcional).** Sin él todo funciona en memoria.
-- **Clave de IA (opcional).** Sin clave se usa el clasificador de respaldo, sin red.
+- **Clave de Gemini (opcional).** Se crea en Google AI Studio; guía paso a paso en [docs/GEMINI.md](docs/GEMINI.md). Sin clave se usan el clasificador de respaldo y plantillas, sin red.
 - **n8n con Gmail (opcional).** Sirve para mandar el comprobante de compra por correo.
 
 ## 2. Instalación y ejecución local
@@ -63,9 +63,12 @@ Copia `backend/.env.example` como `backend/.env`. **Nunca subas el `.env` al rep
 | `DATABASE_SSL` | `true` si la base en la nube exige SSL (conexión externa) | `false` |
 | `ADMIN_PASSWORD` | Contraseña de la consola. **Obligatoria al desplegar** | vacía |
 | `SEED_DEMO` | Carga los datos de demostración al arrancar si la base está vacía | `false` |
-| `AI_PROVIDER` | `anthropic`, `openai` o `heuristic` | `heuristic` |
+| `AI_PROVIDER` | `gemini`, `anthropic`, `openai` o `heuristic` | `heuristic` |
+| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_REASONING_EFFORT`, `GEMINI_STRICT_SCHEMA` | Gemini por su API compatible con OpenAI ([guía](docs/GEMINI.md)) | —, `gemini-3.8-flash`, `low`, `true` |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude | `claude-haiku-5-5` |
-| `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Cualquier API compatible con OpenAI: OpenAI, Gemini, Groq u Ollama | — |
+| `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Cualquier API compatible con OpenAI: OpenAI, Groq u Ollama | — |
+| `ASSISTANT_AUTOPILOT` | Asistente: `off` (solo bajo pedido), `draft` (prepara borradores solo) o `auto` (envía solo lo que pasa todas las validaciones) | `draft` |
+| `ASSISTANT_REVIEW_MINUTES`, `ASSISTANT_TIMEOUT_MS` | Cada cuánto revisa cotizaciones pendientes y tiempo máximo de la IA | `5`, `60000` |
 | `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET` | Envío del comprobante por n8n + Gmail | vacías |
 | `FOLLOW_UP_HOURS` | Horas sin actividad antes de proponer un seguimiento | `48` |
 | `HIGH_AMOUNT_MXN` | Monto a partir del cual se pide revisión humana | `500000` |
@@ -190,15 +193,26 @@ En vivo puedes **adelantar el reloj** (+6 h, +24 h, +48 h) para mostrar cómo ve
 
 ## 9. Cómo se usa la IA
 
-La IA **solo interpreta los mensajes del cliente**; nunca decide la acción final.
+La IA **interpreta los mensajes del cliente** y, con el asistente, **propone** el siguiente paso; nunca decide la acción final.
 
 1. **Contexto.** Por cada mensaje se arma un resumen del caso: monto, si se permite el contacto e historial. El mensaje va delimitado como dato no confiable.
-2. **Salida estructurada.** El modelo devuelve JSON con `intent`, `topic`, `facts`, `inferences`, `missing_information`, `needs_from_client`, `requested_contact_after`, `manipulation_attempt` y `confidence`. Con Claude se fuerza una herramienta; con APIs compatibles con OpenAI se usa modo JSON. Temperatura 0.
+2. **Salida estructurada.** El modelo devuelve JSON con `intent`, `topic`, `facts`, `inferences`, `missing_information`, `needs_from_client`, `requested_contact_after`, `manipulation_attempt` y `confidence`. Con Gemini se pide salida con esquema JSON (con la temperatura predeterminada que recomienda Google para Gemini 3); con Claude se fuerza una herramienta; con otras APIs se usa modo JSON y temperatura 0.
 3. **Validación.** Se valida en código. Si falla, se usa el clasificador de respaldo. La interfaz muestra qué produjo cada interpretación.
 4. **Manipulación.** Órdenes al sistema ("ignora tus reglas", "dame 50% de descuento") se marcan aunque el modelo no las detecte, y el caso se escala.
 5. **Caché.** Cada interpretación se guarda por evento, modelo y texto, para que los resultados se puedan repetir.
 
 El correo del cliente nunca se manda al modelo.
+
+### Asistente comercial (Gemini)
+
+Guía completa, paso a paso: **[docs/GEMINI.md](docs/GEMINI.md)**.
+
+- **Contexto sin datos personales.** Por cada cotización recibe el historial, la decisión vigente del motor, las restricciones, el catálogo y las condiciones aprobadas (`backend/src/ai/conocimiento.js`). No recibe nombres, correos ni teléfonos: el saludo usa `{nombre}` y el backend lo llena.
+- **Respuesta estructurada.** Resumen, necesidad del cliente, acción y momento, explicación con evidencia, borrador, datos faltantes y si hace falta revisión humana.
+- **Validación.** La acción autorizada siempre es la del motor de reglas; las reglas se revisan otra vez a la hora actual; el borrador solo se puede enviar si el contacto está permitido y no ofrece descuentos, no presiona (R5), solo usa cifras aprobadas y no trae enlaces ni teléfonos.
+- **Ejemplos y correcciones.** Seis ejemplos revisados (`ejemplos.js`) y las correcciones que el equipo hace a los borradores orientan las siguientes propuestas. No se reentrena el modelo. `npm run ai:eval` lo mide con casos aparte.
+- **Autonomía por pasos.** `ASSISTANT_AUTOPILOT=draft` prepara borradores al llegar mensajes y en revisiones programadas; `auto` envía solo lo que pasa todas las validaciones, revisando las reglas justo antes de enviar y sin duplicados.
+- **Verificación.** `npm run ai:check` prueba la conexión sin mostrar la clave y `npm run ai:diagnose` mide cuánto tarda la propuesta.
 
 ## 10. Cómo se decide
 
@@ -267,6 +281,9 @@ Si algo falla, publica `wait` con revisión humana.
 | POST | `/api/cases/:id/events` | Simulador |
 | GET | `/api/export` | Recomendaciones (contrato) |
 | POST | `/api/demo/seed`, `/api/demo/kit/:file`, `/api/reset` | Atajos de demostración |
+| GET | `/api/assistant/status` | Asistente: IA, modo, conocimiento, ejemplos, correcciones y propuestas recientes |
+| GET, POST | `/api/cases/:id/assistant` | Última propuesta del asistente para el caso / generar una nueva |
+| POST | `/api/cases/:id/reply` | Responder en el portal; con `assistant_run_id` guarda la corrección del equipo al borrador |
 
 **Portal** (público, `x-customer-id`):
 
@@ -283,7 +300,7 @@ Si algo falla, publica `wait` con revisión humana.
 npm test
 ```
 
-Son 85 pruebas sin red, más una con PostgreSQL (`TEST_DATABASE_URL`). Cubren:
+Son más de 120 pruebas sin red, más una con PostgreSQL (`TEST_DATABASE_URL`). Cubren:
 
 - Reglas R1–R4 y validación de eventos.
 - Kit P01–P06 y el cambio de P06.
@@ -295,6 +312,9 @@ Son 85 pruebas sin red, más una con PostgreSQL (`TEST_DATABASE_URL`). Cubren:
 - La contraseña de la consola.
 - Etapas, análisis de compras y pérdidas, lecciones (IA y plantilla), tiempos aprendidos y versiones.
 - Que con la hora del manifest el aprendizaje no cambie el resultado oficial del kit.
+- Gemini contra un servidor simulado: salida con esquema, reintentos, límite de uso (429) con pausa, clave inválida y respuestas vacías.
+- El asistente: manda el motor de reglas, borradores sin descuentos ni cifras inventadas, privacidad del contexto, plantilla de respaldo y correcciones del equipo.
+- El ciclo autónomo: borradores en segundo plano, envío automático una sola vez y nada se envía si hace falta revisión humana.
 
 ## 13. Resultados con el kit público
 
@@ -319,8 +339,9 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
    - En la consola: **Esperar**, "Lo correcto es no intervenir", con la barra de su ventana de paciencia.
    - Adelanta el reloj +48 h: sigue en espera. +24 h más: pasa a un seguimiento amable.
 4. **Compra y comprobante (50 s).** Desde el celular: Aceptar y comprar → correo → llega el comprobante por Gmail. En la consola: el caso pasa a `no_action` (R1) y el cliente suma una compra.
-5. **Aprendizaje (40 s).** Pestaña Aprendizaje: embudo, qué separa compras de pérdidas, tiempos ajustados con datos y la lección del caso que se acaba de cerrar (la versión sube a v2). En Casos, abre NS-1006 para ver "Por qué no se compró".
-6. **Cierre (20 s).** Exportar JSON y `npm test`.
+5. **Asistente con Gemini (opcional, 40 s).** El cliente escribe "¿El precio incluye la instalación?". En la consola, el caso muestra la propuesta del asistente: necesidad, acción autorizada por el motor, borrador validado y sus chequeos. **Usar este borrador** → enviar.
+6. **Aprendizaje (40 s).** Pestaña Aprendizaje: embudo, qué separa compras de pérdidas, tiempos ajustados con datos y la lección del caso que se acaba de cerrar (la versión sube a v2). En Casos, abre NS-1006 para ver "Por qué no se compró".
+7. **Cierre (20 s).** Exportar JSON y `npm test`.
 
 ## 15. Limitaciones
 
@@ -328,6 +349,8 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
 - Las fechas relativas sin hora se fijan a las 15:00 UTC.
 - El portal no tiene autenticación real de clientes: es una demo con empresas ficticias.
 - El comprobante no es una factura fiscal (CFDI).
+- Las condiciones comerciales de `backend/src/ai/conocimiento.js` (garantías, tiempos, financiamiento) son de demostración.
+- En el plan gratuito de Gemini, Google puede usar lo que se envía para mejorar sus productos; por eso el asistente no envía datos personales y la demo usa empresas ficticias.
 - No hay procesamiento continuo: se reevalúa al llegar eventos, al consultar en modo en vivo o con el botón Evaluar.
 
 ## 16. Estructura
@@ -341,11 +364,14 @@ n8n/                       flujo importable Webhook → Gmail y su guía
 backend/
   src/domain/              validación, estado, reglas, política, guardián, perfil del cliente,
                            etapas (stages.js), por qué se compró o no (outcome.js), aprendizaje (learning.js)
-  src/ai/                  prompt, proveedores (Claude / compatible con OpenAI), respaldo, lecciones
+  src/ai/                  prompt, proveedores (Gemini / Claude / compatible con OpenAI), respaldo, lecciones,
+                           asistente: conocimiento.js, ejemplos.js, evaluacion.js, validación de borradores
+  src/services/assistant.js  ciclo del asistente: propone → valida → ejecuta lo autorizado → registra
   src/portal/              catálogo, servicio del portal, datos demo, comprobante y envío a n8n
   src/storage/             memoria y PostgreSQL (misma interfaz)
   src/services/engine.js   reloj, evaluación, historial, clientes, resumen
   src/routes/api.js        API Express (consola protegida + portal público)
+  src/cli/                 evaluación del kit, npm run ai:check y npm run ai:eval
   test/                    pruebas (node:test)
 frontend/
   src/components/          consola: resumen, casos, clientes, reloj, carga
@@ -362,6 +388,6 @@ frontend/
 - Las respuestas del equipo quedan en la conversación del portal como `action.executed`. La propuesta y respuestas comprueban restricciones de contacto, fechas de espera, enfriamiento y cierre antes de enviar. Requieren contraseña de consola cuando `ADMIN_PASSWORD` está configurada.
 - El portal actualiza sus datos cada 15 segundos y al recuperar el foco. El envío de propuestas y respuestas es al portal; correo y WhatsApp quedan registrados como preferencias, sin prometer entregas por canales aún no integrados.
 - `proposal.sent` es una extensión del portal. Los archivos del kit y sus reglas conservan el comportamiento existente. No requiere cambios de esquema: los datos se guardan en los eventos de PostgreSQL.
-- La integración Gemini y un ejecutor autónomo siguen siendo pasos posteriores. El motor vigente recomienda el siguiente paso y el equipo confirma el contenido de los envíos.
+- Gemini y el asistente autónomo ya están integrados ([docs/GEMINI.md](docs/GEMINI.md)). Por defecto el asistente prepara borradores y el equipo confirma los envíos; con `ASSISTANT_AUTOPILOT=auto` solo envía lo que pasa todas las validaciones.
 
 API de este flujo: `POST /api/portal/requests`, `GET /api/proposal-options`, `POST /api/cases/:id/proposal`, `POST /api/cases/:id/reply`.

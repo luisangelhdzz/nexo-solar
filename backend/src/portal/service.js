@@ -9,14 +9,23 @@ import { randomUUID } from 'node:crypto';
 import { evaluateRules } from '../domain/rules.js';
 import { activeClientDelays } from '../domain/policy.js';
 import { EngineError } from '../services/engine.js';
-import { buildCaseState } from '../domain/state.js';
+import { buildCaseState, pendingMessages } from '../domain/state.js';
 import { isIsoUtc, toIso, toMs } from '../domain/time.js';
 import { PACKAGES, SECTIONS, findPackage } from './catalog.js';
 import { buildInvoice, isValidEmail, sendToN8n } from './invoice.js';
 
 const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
-export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
+// `onActivity(caseId, origen)`: aviso opcional cuando el cliente escribe o envía una solicitud
+// (lo usa el asistente para preparar su propuesta en segundo plano). Nunca bloquea al cliente.
+export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActivity = null }) {
+  const notify = (caseId, origin) => {
+    if (!onActivity) return;
+    try {
+      Promise.resolve(onActivity(caseId, origin)).catch(() => {});
+    } catch { /* el asistente nunca rompe el portal */ }
+  };
+
   // El portal trabaja con la hora real: si la consola estaba en la hora del manifest, cambia a "en vivo".
   async function liveNow() {
     let clock = await engine.getClock();
@@ -186,6 +195,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       };
       const caseId = `NS-REQ-${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`;
       await emit(caseId, 'case.opened', { status: 'open', proposal_amount_mxn: null, customer_id: customerId, proposal_status: 'pending', request }, 0);
+      notify(caseId, 'solicitud');
       const events = await storage.getCaseEvents(caseId);
       return caseView(buildCaseState(caseId, events), events);
     },
@@ -211,6 +221,34 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
         const { events } = await writableCase(caseId, action);
         await emit(caseId, 'action.executed', { action, message, channel: 'portal' }, events.length);
         return engine.getCase(caseId);
+      });
+    },
+
+    // Respuesta automática del asistente (modo auto). Las reglas se revisan justo antes de enviar
+    // y el event_id es fijo por situación: si dos servidores intentan enviar lo mismo, la base
+    // de datos guarda solo uno y nunca se reintenta con otro id.
+    // `answering`: el borrador responde mensajes pendientes del cliente; si alguien del equipo ya
+    // los respondió mientras tanto, no se envía.
+    async replyFromAssistant(caseId, { message, action, key, answering = false } = {}) {
+      return deliver(async () => {
+        const text = clean(message, 1000);
+        if (!text) throw new EngineError('El borrador está vacío.');
+        if (!/^[a-z0-9-]{6,40}$/i.test(String(key ?? ''))) throw new EngineError('Falta la clave del envío automático.');
+        const act = action === 'request_information' ? 'request_information' : 'contact';
+        const { state } = await writableCase(caseId, act);
+        if (answering && !pendingMessages(state).length) {
+          return { sent: false, reason: 'El equipo ya respondió el último mensaje del cliente.' };
+        }
+        const event = {
+          event_id: `${caseId}-ia-${key}`,
+          case_id: caseId,
+          event_type: 'action.executed',
+          occurred_at: await liveNow(),
+          data: { action: act, message: text, channel: 'portal', author: 'asistente' },
+        };
+        const result = await engine.ingest({ content: JSON.stringify(event), source: 'asistente', autoEvaluate: true });
+        if (!result.accepted) return { sent: false, reason: 'Este mensaje ya se había enviado.', event_id: event.event_id };
+        return { sent: true, event_id: event.event_id, at: event.occurred_at };
       });
     },
 
@@ -242,6 +280,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       const { events, state } = await caseOf(caseId, customerId);
       if (state.status === 'closed') throw new EngineError('Esta cotización ya está cerrada.', 409, 'CLOSED');
       await emit(caseId, 'message.received', { message: text }, events.length);
+      notify(caseId, 'mensaje');
       const after = await storage.getCaseEvents(caseId);
       return caseView(buildCaseState(caseId, after), after);
     },

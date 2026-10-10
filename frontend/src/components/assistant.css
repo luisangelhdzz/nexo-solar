@@ -1,0 +1,39 @@
+/* Panel del asistente comercial (consola). Usa las variables del tema de la consola (.app). */
+.app .assistant {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.app .assistant-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.app .assistant-head .btn { white-space: nowrap; flex-shrink: 0; }
+.app .assistant-head h4 { font-size: .95rem; font-weight: 600; margin: 0 0 .2rem; }
+.app .assistant-alert { margin: .6rem 0 0; padding: .45rem .6rem; border-radius: 7px; color: var(--sun-ink); background: var(--sun-soft); }
+.app .assistant-run { margin-top: .8rem; display: flex; flex-direction: column; gap: .7rem; }
+.app .assistant-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
+.app .assistant-tone-go { border-color: var(--go); color: var(--go); background: var(--go-soft); }
+.app .assistant-tone-warn { border-color: var(--sun); color: var(--sun-ink); background: var(--sun-soft); }
+.app .assistant-tone-hold { border-color: var(--hold); color: var(--hold); background: var(--hold-soft); }
+.app .assistant-tone-stop { border-color: var(--stop); color: var(--stop); background: var(--stop-soft); }
+.app .assistant-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem 1.2rem; margin: 0; }
+.app .assistant-grid .wide { grid-column: 1 / -1; }
+.app .assistant-grid dt { color: var(--ink-faint); font-size: .78rem; margin-bottom: .25rem; }
+.app .assistant-grid dd { margin: 0; color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+.app .assistant-grid ul { margin: 0; padding-left: 1.1rem; }
+.app .assistant-note { display: block; margin-top: .3rem; color: var(--sun-ink); font-size: .82rem; }
+.app .assistant-refs { display: block; margin-top: .3rem; color: var(--ink-faint); font-size: .8rem; }
+.app .assistant-draft { border-left: 3px solid var(--go); padding: .2rem 0 .2rem .8rem; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.app .assistant-draft.is-blocked { border-left-color: var(--stop); }
+.app .assistant-draft-label { color: var(--ink-faint); font-size: .78rem; margin: 0; }
+.app .assistant-draft blockquote { margin: 0; color: var(--ink); line-height: 1.5; white-space: pre-wrap; }
+.app .assistant-checks summary { cursor: pointer; color: var(--ink-soft); font-size: .82rem; }
+.app .assistant-checks ul { list-style: none; margin: .5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; }
+.app .assistant-checks li.ok { color: var(--ink-soft); }
+.app .assistant-checks li.ok span { color: var(--go); }
+.app .assistant-checks li.warn { color: var(--sun-ink); }
+.app .assistant-checks li.bad { color: var(--stop); }
+@media (max-width: 700px) {
+  .app .assistant-head { flex-direction: column; }
+  .app .assistant-grid { grid-template-columns: 1fr; }
+}

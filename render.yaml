@@ -20,8 +20,15 @@ services:
         value: "true"
       - key: ADMIN_PASSWORD
         sync: false
+      # Sin GEMINI_API_KEY el sistema usa el clasificador de respaldo y plantillas.
       - key: AI_PROVIDER
-        value: heuristic
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: ASSISTANT_AUTOPILOT
+        value: draft
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_BASE_URL

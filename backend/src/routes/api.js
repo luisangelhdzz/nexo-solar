@@ -49,7 +49,7 @@ export function rateLimit({ windowMs = 60000, max = 120 } = {}) {
   };
 }
 
-export function createApiRouter(engine, { portal, storage, adminPassword = '' } = {}) {
+export function createApiRouter(engine, { portal, storage, adminPassword = '', assistant = null } = {}) {
   const r = express.Router();
 
   r.get('/health', (req, res) => res.json({ ok: true }));
@@ -121,7 +121,21 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '' } 
 
   r.get('/proposal-options', (req, res) => res.json(portal.catalog()));
   r.post('/cases/:id/proposal', wrap(async (req, res) => res.json(await portal.sendProposal(req.params.id, req.body ?? {}))));
-  r.post('/cases/:id/reply', wrap(async (req, res) => res.json(await portal.reply(req.params.id, req.body ?? {}))));
+  r.post('/cases/:id/reply', wrap(async (req, res) => {
+    const result = await portal.reply(req.params.id, req.body ?? {});
+    // Si el mensaje partió de un borrador del asistente, se guarda la corrección del equipo.
+    if (assistant && req.body?.assistant_run_id) {
+      await assistant.recordFeedback({ runId: req.body.assistant_run_id, caseId: req.params.id, finalMessage: req.body.message }).catch(() => null);
+    }
+    res.json(result);
+  }));
+
+  // ---------- Consola: asistente comercial (Gemini propone; las reglas deciden) ----------
+  if (assistant) {
+    r.get('/assistant/status', wrap(async (req, res) => res.json(await assistant.status())));
+    r.get('/cases/:id/assistant', wrap(async (req, res) => res.json(await assistant.latest(req.params.id))));
+    r.post('/cases/:id/assistant', wrap(async (req, res) => res.json(await assistant.runForCase(req.params.id, { origin: 'manual' }))));
+  }
 
   r.post('/cases/:id/events', wrap(async (req, res) => {
     res.json(await engine.addEvent(req.params.id, req.body));
