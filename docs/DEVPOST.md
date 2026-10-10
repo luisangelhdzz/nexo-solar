@@ -1,6 +1,6 @@
 # Entrega de Nexo Solar en Devpost
 
-Ficha preparada para copiar al formulario de Devpost. Evento confirmado por el equipo; pendientes los integrantes y el enlace alojado del video. No enviada todavía. Verificar las preguntas específicas del evento antes de enviar.
+Ficha preparada para copiar al formulario de Devpost. Evento e integrantes confirmados por el equipo; pendiente el enlace alojado del video. No enviada todavía. Verificar las preguntas específicas del evento antes de enviar.
 
 ## Evento y estado de la entrega
 
@@ -11,7 +11,7 @@ Ficha preparada para copiar al formulario de Devpost. Evento confirmado por el e
 - Estado: ficha preparada en el repositorio, sin envío confirmado en Devpost.
 - Video máximo del evento: 3 minutos; el archivo recibido cumple por duración.
 - Cierre configurado en Devpost: 10 de octubre de 2026, 15:00 hora de Saltillo/Monterrey (21:00 UTC). Confirmado desde el contador del evento: 2026-10-10T17:00:00-04:00.
-- Equipo requerido: de 3 a 5 integrantes, estudiantes activos. Pendientes sus nombres completos.
+- Equipo requerido: de 3 a 5 integrantes, estudiantes activos. El equipo indicó cuatro integrantes; sus nombres aparecen abajo.
 - Entrega requerida: nombre y descripción, reto elegido, GitHub, video demo, tecnologías y nombres completos.
 - Uso de asistentes de IA: permitido por las bases si se declara. Usamos asistencia de IA durante el desarrollo y Gemini en el producto.
 - Fuentes: [Evento](https://hackathon-tecnm-saltillo.devpost.com/) y [Reglas](https://hackathon-tecnm-saltillo.devpost.com/rules).
@@ -23,6 +23,15 @@ Nexo Solar
 ## Descripción breve
 
 Asistente de IA que propone el siguiente paso de cada cotización solar y respeta los tiempos del cliente.
+
+## Integrantes del equipo
+
+- EMILIANO ENRIQUEZ MORGADO
+- SEBASTIAN ALEJANDRO HERNANDEZ SALAZAR
+- LUIS ANGEL EDUARDO HERNANDEZ HERNANDEZ
+- RAUL GUERRA LOPEZ
+
+Nombres proporcionados por el equipo. Su registro en **Manage Team** de Devpost todavía no está confirmado.
 
 ## Inspiración
 
@@ -96,7 +105,7 @@ La base de presentación incluye siete casos ficticios: solicitar información, 
 ## Pendientes de la entrega
 
 - Seleccionar RETO BYECODE. Si el formulario permite premios de patrocinadores, revisar Best Use of Gemini API y Best Use of Tiger Data, que sí utilizamos; no seleccionar herramientas que no estén integradas.
-- Agregar integrantes reales e invitarlos al proyecto.
+- Registrar a los cuatro integrantes en Manage Team de Devpost y verificar que aparezcan en la entrega.
 - Añadir logo y capturas reales del portal, dashboard y asistente.
 - Añadir enlace del video.
 - Verificar el estado de la integración n8n en el despliegue antes de presentarla como operativa.
