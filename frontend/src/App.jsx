@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, adminPassword } from './api.js';
 import { ACTION_LABEL } from './format.js';
 import TopBar from './components/TopBar.jsx';
+import './console.css';
 import LoadPanel from './components/LoadPanel.jsx';
 import CaseList from './components/CaseList.jsx';
 import CaseView from './components/CaseView.jsx';
@@ -39,6 +40,13 @@ const TAB_FROM_HASH = () => {
 };
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('nexo-console-theme') === 'light' ? 'light' : 'dark'; }
+    catch { return 'dark'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('nexo-console-theme', theme); } catch { /* El tema sigue funcionando sin almacenamiento. */ }
+  }, [theme]);
   const [auth, setAuth] = useState({ checked: false, required: false, ok: true, error: null });
   const [tab, setTab] = useState(TAB_FROM_HASH());
   const [status, setStatus] = useState(null);
@@ -300,8 +308,10 @@ export default function App() {
   const now = status?.clock?.evaluation_at;
 
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       <TopBar
+        theme={theme}
+        onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
         status={status}
         busy={busy}
         tab={tab}
