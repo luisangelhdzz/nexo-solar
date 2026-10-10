@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { portalApi, portalCustomer } from '../api.js';
 import { BotonCotizaciones, HomePage, MenuBar, Pie, SECCION_DE_RUTA, useSeccionActiva } from './Storefront.jsx';
 import { dateMx, dayMx, go, money, parseHash } from './util.js';
 import { packagePhoto } from './photos.js';
+import RequestForm from './RequestForm.jsx';
 import './portal.css';
 import './storefront.css';
 
-// Portal público de Nexo Solar (empresa ficticia): tienda en línea con la cotización como una sección más.
+// Portal público de Nexo Solar: solicitud del proyecto y revisión de propuestas.
 // Lo que hace el cliente aquí se registra como eventos; nunca se le muestra la recomendación interna.
 
 function sectionText(id, pkg) {
@@ -32,7 +33,7 @@ const STATUS = {
   rejected: { label: 'Rechazada', cls: 'st-off' },
   cancelled: { label: 'Cancelada', cls: 'st-off' },
 };
-const statusOf = (q) => (q.status === 'closed' ? STATUS[q.closed_status] : STATUS.open);
+const statusOf = (q) => (q.status === 'closed' ? STATUS[q.closed_status] : q.proposal_pending ? { label: 'Solicitud recibida', cls: 'st-open' } : STATUS.open);
 
 function PickCompany({ onPicked, onError }) {
   const [list, setList] = useState(null);
@@ -105,7 +106,7 @@ function QuoteHome({ me, onOpen, onSwitch }) {
 
       {me.quotes.length > 0 && (
         <section className="p-card">
-          <h2>Tus cotizaciones</h2>
+          <h2>Tus solicitudes y cotizaciones</h2>
           <ul className="p-quotes">
             {me.quotes.map((q) => (
               <li key={q.case_id}>
@@ -113,10 +114,10 @@ function QuoteHome({ me, onOpen, onSwitch }) {
                   {packagePhoto(q.package?.package_id) ? <img className="p-thumb" src={packagePhoto(q.package.package_id)} alt="" loading="lazy" /> : <span className="p-thumb" aria-hidden="true" />}
                   <span className="p-quote-text">
                     <span className="p-quote-top">
-                      <strong>{q.package?.name ?? 'Propuesta'}</strong>
+                      <strong>{q.proposal?.title ?? q.package?.name ?? 'Tu proyecto solar'}</strong>
                       <span className={`p-status ${statusOf(q).cls}`}>{statusOf(q).label}</span>
                     </span>
-                    <span className="p-muted">{q.case_id}, {money(q.amount_mxn)} MXN, {dateMx(q.opened_at)}</span>
+                    <span className="p-muted">{q.proposal_pending ? 'Propuesta en preparación' : `${money(q.amount_mxn)} MXN`} · {dateMx(q.opened_at)}</span>
                   </span>
                 </button>
               </li>
@@ -126,9 +127,9 @@ function QuoteHome({ me, onOpen, onSwitch }) {
       )}
 
       <section className="p-card">
-        <h2>Equipos y componentes individuales</h2>
-        <p className="p-muted">Consulta el catálogo para ver los productos disponibles por separado.</p>
-        <button type="button" className="p-btn p-btn-sun" onClick={() => go('productos')}>Ver productos</button>
+        <h2>Un nuevo proyecto</h2>
+        <p className="p-muted">Cuéntanos qué necesitas y prepararemos una solución para tu negocio.</p>
+        <button type="button" className="p-btn p-btn-sun" onClick={() => go('cotizar')}>Solicitar cotización</button>
       </section>
     </main>
   );
@@ -172,16 +173,22 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
       <section className={`p-quote-hero ${packagePhoto(pkg?.package_id) ? 'has-photo' : ''}`}>
         <div className="p-quote-hero-text">
           <span className={`p-status ${st.cls}`}>{st.label}</span>
-          <h1>{pkg?.name ?? 'Propuesta'}</h1>
-          <p className="p-price-big">{money(quote.amount_mxn)} <span>MXN con IVA</span></p>
+          <h1>{quote.proposal?.title ?? (quote.proposal_pending ? 'Recibimos tu solicitud' : pkg?.name ?? 'Propuesta')}</h1>
+          {quote.proposal_pending ? <p>Estamos revisando tu proyecto. Aquí verás tu propuesta cuando el equipo la prepare.</p> : <p className="p-price-big">{money(quote.amount_mxn)} <span>MXN con IVA</span></p>}
           {pkg && <p>{pkg.panels} paneles, {pkg.kw} kW. Ahorro estimado de {money(pkg.monthly_saving_mxn)} al mes.</p>}
           <p className="p-muted-light">Cotización {quote.case_id}, {dateMx(quote.opened_at)}</p>
         </div>
         {packagePhoto(pkg?.package_id) && <img className="p-quote-photo" src={packagePhoto(pkg.package_id)} alt={`Equipo del paquete ${pkg.name} (imagen ilustrativa)`} />}
       </section>
 
-      <section className="p-card">
+      {quote.request && <section className="p-card">
+        <h2>Tu proyecto</h2><p>{quote.request.goal}</p>
+        <p className="p-muted">{quote.request.city} · {quote.request.roof}</p>
+        <p>{quote.request.bill_amount_mxn ? `${money(quote.request.bill_amount_mxn)} por recibo ${quote.request.bill_period === 'bimonthly' ? 'bimestral' : 'mensual'}` : 'Gasto de electricidad por confirmar'}</p>
+      </section>}
+      {!quote.proposal_pending && <section className="p-card">
         <h2>Revisa tu propuesta</h2>
+        {quote.proposal?.notes && <p>{quote.proposal.notes}</p>}
         <ul className="p-sections">
           {catalog?.sections.map((s) => (
             <li key={s.id}>
@@ -189,15 +196,15 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
                 <span>{s.title}</span>
                 <span aria-hidden="true">{openSection === s.id ? '−' : '+'}</span>
               </button>
-              {openSection === s.id && pkg && <p className="p-section-body">{sectionText(s.id, pkg)}</p>}
+              {openSection === s.id && pkg && <p className="p-section-body">{sectionText(s.id, { ...pkg, price_mxn: quote.amount_mxn })}</p>}
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       {!closed && (
         <section className="p-card">
-          <h2>¿Tienes una duda?</h2>
+          <h2>{quote.proposal_pending ? '¿Quieres agregar información?' : '¿Tienes una duda?'}</h2>
           <form
             className="p-form"
             onSubmit={(e) => {
@@ -212,12 +219,13 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
         </section>
       )}
 
-      {quote.messages.length > 0 && (
+      {(quote.conversation ?? quote.messages).length > 0 && (
         <section className="p-card">
-          <h2>Tus mensajes</h2>
+          <h2>Conversación con Nexo Solar</h2>
           <ul className="p-messages">
-            {quote.messages.map((m) => (
-              <li key={m.event_id}>
+            {(quote.conversation ?? quote.messages).map((m) => (
+              <li key={m.event_id} className={m.from === 'team' ? 'p-team-message' : ''}>
+                <strong>{m.from === 'team' ? 'Nexo Solar' : 'Tú'}</strong>
                 <p>{m.message}</p>
                 <span className="p-muted">{dateMx(m.at)}</span>
               </li>
@@ -261,13 +269,13 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
         </section>
       )}
 
-      {!closed && (
+      {!closed && !quote.proposal_pending && (
         <section className="p-card p-decide">
           <h2>¿Listo para decidir?</h2>
           <p className="p-muted">Tómate el tiempo que necesites. No hay prisa.</p>
           {confirm ? (
             <div className="p-confirm">
-              <p>{confirm === 'accept' ? `¿Confirmas la compra de ${pkg?.name} por ${money(quote.amount_mxn)} MXN?` : '¿Seguro que quieres rechazar esta cotización?'}</p>
+              <p>{confirm === 'accept' ? `¿Confirmas la compra de ${quote.proposal?.title ?? pkg?.name} por ${money(quote.amount_mxn)} MXN?` : '¿Seguro que quieres rechazar esta cotización?'}</p>
               <div className="p-row">
                 <button
                   type="button"
@@ -375,12 +383,19 @@ export default function PortalApp() {
   }, []);
   useEffect(() => { load(customerId); }, [customerId, load]);
   useEffect(() => {
+    if (!customerId) return;
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') load(customerId); }, 15000);
+    const onFocus = () => load(customerId);
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [customerId, load]);
+  useEffect(() => {
     const onHash = () => setRoute(parseHash());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  const inQuoteSection = route.page === 'cotizar' || route.page === 'cotizacion';
+  const inQuoteSection = ['cotizar', 'mis-cotizaciones', 'cotizacion'].includes(route.page);
 
   // Las rutas de las secciones del inicio (#/productos, #/como-cotizar, #/contacto) bajan
   // a su lugar; "Mis cotizaciones" y el inicio empiezan arriba.
@@ -402,40 +417,20 @@ export default function PortalApp() {
     portalCustomer.set(null);
     setCustomerId(null);
     setMe(null);
-    go('cotizar');
+    go('mis-cotizaciones');
   };
   const openQuote = (id) => go(`cotizacion/${id}`);
 
-  const requestQuote = async (packageId) => {
-    setBusy(true);
+  const submitRequest = async (form) => {
+    setBusy(true); setError(null);
     try {
-      const q = await portalApi.requestQuote(customerId, packageId);
-      await load(customerId);
+      let cid = customerId;
+      if (!cid) { const c = await portalApi.createCustomer(form); cid = c.customer_id; pick(cid); }
+      const q = await portalApi.submitRequest(cid, form);
+      await load(cid);
       openQuote(q.case_id);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
-
-  // Desde la tienda: si ya hay una cotización abierta de ese paquete se abre; si hay empresa,
-  // el paquete se cotiza directo; si no, se pasa por "Mis cotizaciones" para elegir empresa.
-  const quoteFromShop = (product, existing) => {
-    if (existing) openQuote(existing.case_id);
-    else if (product.package_id && customerId && me) requestQuote(product.package_id);
-    else go('cotizar');
-  };
-
-  // Paquetes que el cliente ya tiene en una cotización abierta: su tarjeta se marca.
-  const cotizados = useMemo(() => {
-    const out = {};
-    (me?.quotes ?? []).forEach((q) => {
-      const id = q.package?.package_id;
-      if (id && q.status !== 'closed' && !out[id]) out[id] = q;
-    });
-    return out;
-  }, [me]);
 
   const updateQuote = (q) => {
     setMe((prev) => (prev ? { ...prev, quotes: prev.quotes.map((x) => (x.case_id === q.case_id ? q : x)) } : prev));
@@ -446,17 +441,18 @@ export default function PortalApp() {
 
   let page;
   if (inQuoteSection) {
-    if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
+    if (route.page === 'cotizar') page = <RequestForm customer={me?.customer} onSubmit={submitRequest} busy={busy} />;
+    else if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
     else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
-    else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={() => go('cotizar')} onError={showError} />;
+    else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={() => go('mis-cotizaciones')} onError={showError} />;
     else page = <QuoteHome me={me} onOpen={openQuote} onSwitch={switchCompany} />;
   } else {
-    page = <HomePage catalog={catalog} onQuote={quoteFromShop} busy={busy} cotizados={cotizados} />;
+    page = <HomePage />;
   }
 
   return (
     <div className="portal">
-      <MenuBar activo={inQuoteSection ? 'cotizar' : seccion} />
+      <MenuBar activo={route.page === 'cotizar' ? 'solicitar' : inQuoteSection ? 'cotizar' : seccion} />
       {error && (
         <div className="p-error" role="alert">
           <span>{error}</span>

@@ -218,3 +218,17 @@
 .p-invoice dd { margin: 0; text-align: right; font-weight: 500; color: #fff; }
 
 .p-error { max-width: 680px; margin: 1rem auto 0; padding: 0.7rem 1rem; background: rgba(196, 3, 43, 0.18); border: 1px solid #c4032b; border-radius: 8px; color: #ffc2cc; display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+
+/* Solicitud de proyecto y conversación compartida con el equipo. */
+.p-request-main { max-width: 860px; }
+.p-request-form fieldset { border: 0; padding: 0; margin: 0 0 1.5rem; min-width: 0; }
+.p-request-form legend { color: var(--p-ink); font-size: 1.08rem; font-weight: 600; margin-bottom: 1rem; }
+.p-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.p-full { grid-column: 1 / -1; }
+.portal .p-form select { width: 100%; padding: .75rem; background: var(--p-bg); color: var(--p-ink); border: 1px solid var(--p-line); border-radius: 8px; font: inherit; }
+.portal .p-check { display: flex; flex-direction: row; align-items: flex-start; gap: .7rem; margin-top: 1rem; }
+.portal .p-check input { width: auto; flex: 0 0 auto; margin-top: .25rem; accent-color: var(--p-sun); }
+.p-eyebrow { font-size: .8rem; letter-spacing: .1em; text-transform: uppercase; }
+.portal .p-team-message { background: rgba(47, 212, 160, .08); border-left: 3px solid var(--p-ok); padding: .9rem; border-radius: 8px; }
+.portal .p-messages { max-height: 380px; overflow-y: auto; }
+@media (max-width: 620px) { .p-form-grid { grid-template-columns: 1fr; } }

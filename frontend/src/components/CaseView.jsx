@@ -3,13 +3,16 @@ import {
   ACTIONS, ACTION_HINT, ACTION_LABEL, CLOSED_LABEL, EVENT_LABEL, FIELD_LABEL, INTENT_LABEL,
   LEVEL_LABEL, RISK_LABEL, fmtMoney, fmtUtc, eventSummary, timingText, valueText,
 } from '../format.js';
+import ProposalPanel from './ProposalPanel.jsx';
 import Simulator from './Simulator.jsx';
 import PatienceMeter from './PatienceMeter.jsx';
 import { TIER_LABEL, fmtHours } from '../format.js';
 
 function customerEventSummary(ev) {
   const data = ev.data || {};
-  if (ev.event_type === 'case.opened') return `Cotización enviada por ${fmtMoney(data.proposal_amount_mxn)}`;
+  if (ev.event_type === 'case.opened') return data.proposal_status === 'pending' ? 'El cliente envió una solicitud de cotización' : `Cotización enviada por ${fmtMoney(data.proposal_amount_mxn)}`;
+  if (ev.event_type === 'proposal.sent') return `Propuesta publicada: ${data.title}, ${fmtMoney(data.proposal_amount_mxn)}`;
+  if (ev.event_type === 'action.executed' && data.message) return `Respuesta del equipo: ${data.message}`;
   if (ev.event_type === 'action.executed') return `Acción realizada: ${ACTION_LABEL[data.action] ?? 'Actividad del equipo'}`;
   if (ev.event_type === 'proposal.viewed') {
     const section = { price: 'Precio', installation: 'Instalación', warranty: 'Garantía', financing: 'Financiamiento', delivery: 'Entrega' }[data.section];
@@ -90,8 +93,8 @@ function OutcomePanel({ outcome, lesson }) {
 function CustomerContext({ customer, trace, state, rec, now }) {
   if (!customer) return null;
   const used = Boolean(trace?.customer?.used);
-  const windowEnd = customer.patience_window_hours && state.opened_at
-    ? new Date(new Date(state.opened_at).getTime() + customer.patience_window_hours * 3600000).toISOString()
+  const windowEnd = customer.patience_window_hours && (state.proposal_sent_at ?? state.opened_at)
+    ? new Date(new Date(state.proposal_sent_at ?? state.opened_at).getTime() + customer.patience_window_hours * 3600000).toISOString()
     : null;
   return (
     <section className={`panel customer-ctx ${used ? 'customer-ctx-used' : ''}`} aria-label="Contexto del cliente">
@@ -112,7 +115,7 @@ function CustomerContext({ customer, trace, state, rec, now }) {
         {customer.trusted && <span className="pill pill-trust">Cliente de confianza (ficha del equipo)</span>}
         {customer.decision_hours_override && <span className="pill">Equipo: decide en ~{customer.decision_hours_override} h</span>}
       </div>
-      {used && windowEnd && <PatienceMeter openedAt={state.opened_at} windowEnd={windowEnd} nowIso={now} typicalHours={customer.patience_hours} />}
+      {used && windowEnd && <PatienceMeter openedAt={state.proposal_sent_at ?? state.opened_at} windowEnd={windowEnd} nowIso={now} typicalHours={customer.patience_hours} />}
       {customer.notes && <p className="muted small">Nota del equipo: {customer.notes}</p>}
       {rec?.action === 'wait' && used && <p className="small">Mientras tanto, nadie del equipo necesita hacer nada con esta cotización.</p>}
     </section>
@@ -341,7 +344,7 @@ function Timeline({ events, interpretations, evidence, highlighted, newIds, hasP
                 {hasPrevious && newIds?.includes(ev.event_id) && <span className="flag flag-changed">Nuevo</span>}
               </div>
               <div className="tl-body">
-                <span className="tl-type">{EVENT_LABEL[ev.event_type]}</span>
+                <span className="tl-type">{ev.event_type === 'case.opened' && ev.data.proposal_status === 'pending' ? 'Solicitud recibida' : EVENT_LABEL[ev.event_type]}</span>
                 <p className={ev.event_type === 'message.received' ? 'tl-message' : 'tl-text'}>{customerEventSummary(ev)}</p>
                 {ev.event_type === 'message.received' && interpretations?.[ev.event_id] && <details className="timeline-analysis"><summary>Ver análisis del mensaje</summary><Interpretation it={interpretations[ev.event_id]} /></details>}
                 {warning.map((w) => <p key={w.message} className="tl-warning">{w.message}</p>)}
@@ -359,6 +362,7 @@ function TracePanel({ trace, rec }) {
   if (!trace) return null;
   const g = trace.guardian;
   const basis = {
+    request: 'la solicitud y los datos del proyecto',
     message: 'el último mensaje del cliente',
     views: 'las aperturas de la propuesta',
     activity: 'el tiempo sin respuesta al último contacto',
@@ -431,7 +435,7 @@ function Issues({ issues }) {
   );
 }
 
-export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, onEvaluate, busy }) {
+export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, onEvaluate, onUpdate, busy }) {
   const [highlighted, setHighlighted] = useState(null);
   const { current, previous, state, events } = detail;
   const rec = current?.recommendation;
@@ -443,7 +447,7 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
     <article className="caseview">
       <header className="case-header">
         <h2>{detail.case_id}</h2>
-        <span className="pill">{fmtMoney(state.amount_mxn)}</span>
+        <span className="pill">{state.proposal_pending ? 'Monto por definir' : fmtMoney(state.amount_mxn)}</span>
         <span className="pill">
           {state.status === 'closed' ? `Cerrado: ${CLOSED_LABEL[state.closed_status]}` : state.status === 'open' ? 'Abierto' : 'Sin apertura'}
         </span>
@@ -462,6 +466,8 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
           <button type="button" className="btn btn-small" onClick={onEvaluate} disabled={Boolean(busy) || !evaluationAt}>Evaluar ahora</button>
         </div>
       )}
+
+      <ProposalPanel key={detail.case_id} detail={detail} onUpdate={onUpdate} busy={Boolean(busy)} />
 
       {rec && (
         <>

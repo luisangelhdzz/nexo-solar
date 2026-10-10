@@ -94,7 +94,7 @@ export function analyzeOutcome({ state, interpretations = {}, stages, decisions 
 
   const intents = state.messages.map(intentOf);
   const priceObjection = state.messages.some((m) => intentOf(m) === 'objection' && /precio|caro|costo/i.test(`${topicOf(m)} ${m.message}`));
-  const decisionHours = state.opened_at ? r1(hoursBetween(state.opened_at, closedAt)) : null;
+  const decisionHours = state.opened_at ? r1(hoursBetween(state.proposal_sent_at ?? state.opened_at, closedAt)) : null;
 
   // Compra reactivada: hubo un silencio de 24 h o más, luego un contacto, y la compra llegó en menos de 48 h.
   let reactivated = false;

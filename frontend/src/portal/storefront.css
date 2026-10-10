@@ -619,3 +619,15 @@
   .portal .boton-carrito { width: 52px; height: 52px; right: 16px; bottom: 16px; }
   .portal .boton-carrito svg { width: 22px; height: 22px; }
 }
+
+.portal .request-hero-copy { color: white; font-size: 1.15rem; margin: 1.5rem 0; }
+.portal .request-intro { padding: 5rem 0; }
+.portal .request-intro-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 3rem; align-items: center; }
+.portal .request-intro h2 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.2; margin: 1rem 0; }
+.portal .request-intro .txt-p { text-align: left; margin-bottom: 1.8rem; }
+.portal .request-benefits { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.portal .request-benefits li { display: flex; gap: 1rem; background: #252b42; padding: 1.4rem; border-radius: 14px; }
+.portal .request-benefits li > span { color: #ffd873; font-size: 1.4rem; font-weight: 700; }
+.portal .request-benefits h3 { color: white; margin: 0 0 .4rem; }
+.portal .request-benefits p { color: #c3cae6; margin: 0; line-height: 1.6; }
+@media (max-width: 760px) { .portal .request-intro-grid { grid-template-columns: 1fr; gap: 1rem; } }

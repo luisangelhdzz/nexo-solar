@@ -153,7 +153,7 @@ Las reglas R1–R6 nunca se aprenden ni cambian.
 Empresa ficticia, sin cobros reales. Desde el celular:
 
 1. **Entrar:** elige una empresa de la lista o registra la tuya.
-2. **Pedir una cotización:** paquetes Comercio 10 kW, Negocio 20 kW o Industria 50 kW. Genera `case.opened`.
+2. **Solicitar una cotización:** formulario de negocio, contacto, gasto de luz, instalación y preferencias. Genera `case.opened` con `proposal_status=pending`, sin monto ni propuesta enviada. El equipo selecciona una solución de referencia interna y publica el precio y alcance desde el dashboard; `proposal.sent` inicia la etapa Enviada.
 3. **Revisar secciones:** precio, instalación, garantía, financiamiento y entrega. Cada apertura genera `proposal.viewed`.
 4. **Escribir una duda:** genera `message.received`.
 5. **Elegir cómo quiere que lo contacten:** "No me contacten antes del…" o "Prefiero que no me contacten". Genera `constraint.updated`.
@@ -351,3 +351,17 @@ frontend/
   src/components/          consola: resumen, casos, clientes, reloj, carga
   src/portal/              portal del cliente (celular)
 ```
+
+
+### Solicitud y propuesta desde el dashboard
+
+- En `/portal#/cotizar` el cliente solicita su proyecto, sin elegir kits. `/portal#/productos` muestra la invitación a cotizar; `/portal#/mis-cotizaciones` muestra solicitudes y propuestas.
+- El recibo puede ser mensual o bimestral; se conserva el monto original y se calcula el equivalente mensual. El gasto es opcional: si falta, el motor recomienda solicitarlo.
+- En la consola, **Cotizaciones → caso → Preparar propuesta**, el equipo revisa los datos, elige una solución interna, verifica precio y alcance y publica la propuesta en el portal. No se hacen cobros.
+- El caso distingue **Solicitud recibida** de **Enviada**. Antes de publicar no hay precio ni aceptación. El tiempo de decisión y el patrón de compra empiezan al enviar la propuesta.
+- Las respuestas del equipo quedan en la conversación del portal como `action.executed`. La propuesta y respuestas comprueban restricciones de contacto, fechas de espera, enfriamiento y cierre antes de enviar. Requieren contraseña de consola cuando `ADMIN_PASSWORD` está configurada.
+- El portal actualiza sus datos cada 15 segundos y al recuperar el foco. El envío de propuestas y respuestas es al portal; correo y WhatsApp quedan registrados como preferencias, sin prometer entregas por canales aún no integrados.
+- `proposal.sent` es una extensión del portal. Los archivos del kit y sus reglas conservan el comportamiento existente. No requiere cambios de esquema: los datos se guardan en los eventos de PostgreSQL.
+- La integración Gemini y un ejecutor autónomo siguen siendo pasos posteriores. El motor vigente recomienda el siguiente paso y el equipo confirma el contenido de los envíos.
+
+API de este flujo: `POST /api/portal/requests`, `GET /api/proposal-options`, `POST /api/cases/:id/proposal`, `POST /api/cases/:id/reply`.

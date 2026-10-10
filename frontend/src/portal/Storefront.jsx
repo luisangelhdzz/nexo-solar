@@ -1,11 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { COMPONENTES } from './products.js';
 import { LOGO } from './photos.js';
 import { go, money } from './util.js';
 
-// Tienda de Nexo Solar: mismo diseño que "Quequitos y Materias Primas by Gris"
-// (barra blanca, header con foto y título que se escribe solo, catálogo con filtros,
-// promo con mapa, pasos y footer), con la paleta de una empresa solar.
+// Portal de Nexo Solar: presentación del proyecto, solicitud y seguimiento de propuestas.
 
 const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
@@ -27,10 +24,10 @@ export const SECCION_DE_RUTA = {
 
 const LINKS = [
   { key: 'inicio', label: 'Inicio', ruta: '' },
-  { key: 'productos', label: 'Productos', ruta: 'productos' },
+  { key: 'solicitar', label: 'Solicitar cotización', ruta: 'cotizar' },
   { key: 'metodos', label: 'Cómo cotizar', ruta: 'como-cotizar' },
   { key: 'contacto', label: 'Contacto', ruta: 'contacto' },
-  { key: 'cotizar', label: 'Mis cotizaciones', ruta: 'cotizar' },
+  { key: 'cotizar', label: 'Mis cotizaciones', ruta: 'mis-cotizaciones' },
 ];
 
 export function irA(ruta) {
@@ -223,6 +220,8 @@ function Encabezado() {
       <div className="header-content">
         <div className="header-texto">
           <TituloEscrito lineas={TITULO} />
+          <p className="request-hero-copy">Tu negocio es único. Tu solución solar también.</p>
+          <button type="button" className="btn-1" onClick={() => go('cotizar')}>Cotizar mi proyecto</button>
         </div>
       </div>
     </header>
@@ -232,150 +231,6 @@ function Encabezado() {
 /* ============================================================
    PRODUCTOS
    ============================================================ */
-const VISIBLES = 9; // cuántos se muestran antes de "Ver más"
-
-// Franja de color de cada tarjeta, como en el panel de referencia: cada producto la suya.
-// Las primeras cuatro son las de la imagen (azul, degradado, rojo y celeste); el celeste
-// no va junto al azul para que en cada fila se vean distintas.
-export const ACENTOS = [
-  '#198ef5',
-  'linear-gradient(90deg, #fdc468, #df4996)',
-  '#c4032b',
-  '#1da1f2',
-  '#1db489',
-  'linear-gradient(90deg, #f7c948, #f08a24)',
-  '#8b5cf6',
-  'linear-gradient(90deg, #22d3ee, #6366f1)',
-  'linear-gradient(90deg, #a3e635, #14b8a6)',
-];
-
-// Quita acentos y mayúsculas: "inversor hibrido" encuentra "Inversor híbrido".
-const normalizar = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
-export function armarCatalogo() {
-  return COMPONENTES.map((producto, i) => ({ ...producto, acento: ACENTOS[i % ACENTOS.length] }));
-}
-
-const IconoCotizar = () => (
-  <svg className="icono-mini" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
-    <path d="M14 3v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
-  </svg>
-);
-
-function ProductoCard({ p, onQuote, busy, cotizacion }) {
-  return (
-    <article className={`producto-card${cotizacion ? ' producto-card--en-carrito' : ''}`} style={{ '--acento': p.acento }}>
-      <div className="producto-media">
-        {p.foto
-          ? <img src={p.foto} alt={`${p.nombre} (imagen ilustrativa)`} loading="lazy" style={p.encuadre ? { objectPosition: p.encuadre } : undefined} />
-          : <div className="producto-img" aria-hidden="true" />}
-        {p.insignia && <span className="producto-insignia">{p.insignia}</span>}
-        <button type="button" className="pastilla" disabled={busy} onClick={() => onQuote(p, cotizacion)}>
-          <IconoCotizar /><span>{cotizacion ? 'Ver mi cotización' : 'Cotizar'}</span>
-        </button>
-      </div>
-      <div className="producto-info">
-        <span className="producto-categoria">{p.etiqueta}</span>
-        <h3>{p.nombre}</h3>
-        <p className="producto-detalle">{p.detalle}</p>
-        <p className="producto-precio">{money(p.precio)}</p>
-        <span className="producto-unidad">{p.unidad}</span>
-        {p.beneficio && <span className="producto-dato"><span aria-hidden="true">▲</span>{p.beneficio}</span>}
-      </div>
-    </article>
-  );
-}
-
-function Productos({ onQuote, busy, cotizados }) {
-  const productos = useMemo(() => armarCatalogo(), []);
-  const [categoria, setCategoria] = useState('todos');
-  const [texto, setTexto] = useState('');
-  const [verTodo, setVerTodo] = useState(false);
-
-  // Las pastillas salen solas de las categorías del catálogo, en su orden.
-  const categorias = useMemo(() => {
-    const cuenta = new Map();
-    productos.forEach((p) => cuenta.set(p.categoria, (cuenta.get(p.categoria) ?? 0) + 1));
-    return [...cuenta.entries()];
-  }, [productos]);
-
-  const busqueda = normalizar(texto);
-  const lista = productos.filter((p) => {
-    if (categoria !== 'todos' && p.categoria !== categoria) return false;
-    if (!busqueda) return true;
-    const heno = normalizar(`${p.nombre} ${p.categoria} ${p.detalle}`);
-    return busqueda.split(/\s+/).every((palabra) => heno.includes(palabra));
-  });
-  const filtroActivo = categoria !== 'todos' || busqueda !== '';
-  // Con un filtro activo se muestra todo lo que coincide: cortar una búsqueda confunde.
-  const paginar = !filtroActivo && !verTodo && lista.length > VISIBLES;
-  const visibles = paginar ? lista.slice(0, VISIBLES) : lista;
-
-  const elegir = (valor) => { setCategoria(valor); setVerTodo(false); };
-  const limpiar = () => { setCategoria('todos'); setTexto(''); setVerTodo(false); };
-
-  return (
-    <section className="productos" id="productos">
-      <div className="productos-content container">
-        <div className="productos-encabezado">
-          <span className="eyebrow">Nuestro catálogo</span>
-          <TituloColgante texto="Productos" />
-          <p className="txt-p">Equipos y componentes solares individuales, disponibles por separado.</p>
-        </div>
-
-        <div className="filtros">
-          {categorias.length > 1 && (
-            <div className="filtros-chips" role="group" aria-label="Filtrar por categoría">
-              {[['todos', 'Todos', productos.length], ...categorias.map(([c, n]) => [c, c, n])].map(([valor, etiqueta, n]) => (
-                <button key={valor} type="button" className={`chip-cat${categoria === valor ? ' activo' : ''}`} aria-pressed={categoria === valor} onClick={() => elegir(valor)}>
-                  {etiqueta}<span className="chip-num">{n}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="buscador">
-            <svg className="buscador-icono" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
-              <path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <input
-              type="search"
-              value={texto}
-              onChange={(e) => { setTexto(e.target.value); setVerTodo(false); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); if (e.key === 'Escape') setTexto(''); }}
-              placeholder="Buscar producto…"
-              autoComplete="off"
-              aria-label="Buscar producto"
-            />
-            {texto && <button type="button" className="buscador-limpiar" aria-label="Limpiar búsqueda" onClick={() => setTexto('')}>×</button>}
-          </div>
-        </div>
-
-        <p className="conteo" aria-live="polite">{filtroActivo && lista.length ? `${lista.length} ${lista.length === 1 ? 'producto' : 'productos'}` : ''}</p>
-
-        {lista.length > 0 && (
-          <div className="productos-group">
-            {visibles.map((p) => <ProductoCard key={p.id} p={p} onQuote={onQuote} busy={busy} cotizacion={p.package_id ? cotizados?.[p.package_id] : null} />)}
-          </div>
-        )}
-
-        {!lista.length && (
-          <div className="sin-resultados">
-            <span aria-hidden="true">🔍</span>
-            <p>{busqueda ? `No encontramos nada con “${texto.trim()}”.` : 'No hay productos en esta categoría.'}</p>
-            <button type="button" className="btn-1 btn-1--claro" onClick={limpiar}>Ver todo el catálogo</button>
-          </div>
-        )}
-
-        {paginar && <button type="button" id="ver-mas" className="btn-1" onClick={() => setVerTodo(true)}>Ver más</button>}
-
-        <p className="productos-nota">Cada producto se muestra por separado. Consulta disponibilidad y cotización individual.</p>
-      </div>
-    </section>
-  );
-}
-
 /* ============================================================
    PROMO + MAPA
    ============================================================ */
@@ -390,7 +245,7 @@ function Promo() {
           <span className="eyebrow">Sin prisa, sin presión</span>
           <h2>Energía solar a tu ritmo</h2>
           <span className="divisor divisor--izq" />
-          <p>Diseñamos, instalamos y conectamos tu sistema en 2 a 3 días. Tu cotización queda guardada: revísala con calma y decide cuando estés listo.</p>
+          <p>Revisamos tu consumo y las condiciones de instalación para preparar una solución adecuada. Tu cotización queda guardada: revísala con calma y decide cuando estés listo.</p>
           <button type="button" className="btn-1 btn-1--claro" onClick={() => go('cotizar')}>Pedir mi cotización</button>
         </div>
         <div className="promo-mapa">
@@ -417,7 +272,7 @@ function Promo() {
    CÓMO COTIZAR
    ============================================================ */
 const PASOS = [
-  { n: '01', acento: '#198ef5', titulo: 'Elige tus productos', texto: 'Selecciona los equipos y componentes individuales que necesitas y solicita información sobre disponibilidad y cotización.' },
+  { n: '01', acento: '#198ef5', titulo: 'Cuéntanos tu proyecto', texto: 'Comparte los datos de tu negocio, tu gasto de luz y cómo prefieres que te contactemos.' },
   { n: '02', acento: 'linear-gradient(90deg, #fdc468, #df4996)', titulo: 'Revísala con calma', texto: 'Abre cada sección de la propuesta, escríbenos tus dudas y dinos desde cuándo prefieres que te contactemos.' },
   { n: '03', acento: '#1db489', titulo: 'Decide y recibe tu comprobante', texto: 'Cuando estés listo, acéptala y te enviamos el comprobante a tu correo. No se cobra nada en línea.' },
 ];
@@ -427,7 +282,7 @@ function Metodos() {
     <section className="metodos" id="metodos">
       <div className="container">
         <span className="eyebrow">Fácil y directo</span>
-        <h2>Cómo cotizar tus productos</h2>
+        <h2>Tu proyecto, paso a paso</h2>
         <span className="divisor" />
         <div className="metodos-content">
           {PASOS.map((p) => (
@@ -463,7 +318,7 @@ export function Pie() {
         <div className="footer-col">
           <h3>Tu cuenta</h3>
           <a href="#/cotizar" onClick={(e) => { e.preventDefault(); irA('cotizar'); }}>Pedir cotización</a>
-          <a href="#/cotizar" onClick={(e) => { e.preventDefault(); irA('cotizar'); }}>Mis cotizaciones</a>
+          <a href="#/mis-cotizaciones" onClick={(e) => { e.preventDefault(); irA('mis-cotizaciones'); }}>Mis cotizaciones</a>
         </div>
       </div>
       <p className="footer-copy">© {new Date().getFullYear()} Nexo Solar. Sitio de demostración del hackatón ByeCode: empresa ficticia, sin cobros reales.</p>
@@ -473,7 +328,7 @@ export function Pie() {
 
 export function BotonCotizaciones({ cantidad }) {
   return (
-    <button type="button" className="boton-carrito" aria-label={`Mis cotizaciones${cantidad ? `, ${cantidad}` : ''}`} title="Mis cotizaciones" onClick={() => irA('cotizar')}>
+    <button type="button" className="boton-carrito" aria-label={`Mis cotizaciones${cantidad ? `, ${cantidad}` : ''}`} title="Mis cotizaciones" onClick={() => irA('mis-cotizaciones')}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
         <path d="M14 3v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -486,11 +341,16 @@ export function BotonCotizaciones({ cantidad }) {
 /* ============================================================
    PÁGINA DE INICIO
    ============================================================ */
-export function HomePage({ catalog, onQuote, busy, cotizados }) {
+export function HomePage() {
   return (
     <>
       <Encabezado />
-      <Productos onQuote={onQuote} busy={busy} cotizados={cotizados} />
+      <section className="productos request-intro" id="productos">
+        <div className="container request-intro-grid">
+          <div><span className="eyebrow">Hecho para tu negocio</span><h2>Una cotización que empieza contigo</h2><p className="txt-p">No necesitas elegir un kit. Cuéntanos tu consumo y tus objetivos; el equipo preparará una propuesta que puedas revisar con calma.</p><button type="button" className="btn-1" onClick={() => go('cotizar')}>Solicitar cotización</button></div>
+          <ol className="request-benefits"><li><span>01</span><div><h3>Comparte lo que necesitas</h3><p>Un formulario sencillo, sin comprometerte a comprar.</p></div></li><li><span>02</span><div><h3>Recibe una propuesta</h3><p>Precio, instalación y condiciones en un solo lugar.</p></div></li><li><span>03</span><div><h3>Seguimiento a tu ritmo</h3><p>Pregunta y elige cuándo podemos contactarte.</p></div></li></ol>
+        </div>
+      </section>
       <Promo />
       <Metodos />
     </>

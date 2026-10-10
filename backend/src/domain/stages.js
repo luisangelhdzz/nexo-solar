@@ -8,9 +8,10 @@
 
 import { hoursBetween, toMs } from './time.js';
 
-export const STAGES = ['enviada', 'revisando', 'con_dudas', 'decidiendo', 'comprada', 'perdida'];
+export const STAGES = ['solicitud', 'enviada', 'revisando', 'con_dudas', 'decidiendo', 'comprada', 'perdida'];
 
 export const STAGE_LABEL = {
+  solicitud: 'Solicitud recibida',
   enviada: 'Enviada',
   revisando: 'Revisando',
   con_dudas: 'Con dudas',
@@ -39,7 +40,11 @@ export function buildStages(state, interpretations = {}, nowIso = null) {
     if (current === 'comprada' || current === 'perdida') break; // el cierre es definitivo
     switch (ev.event_type) {
       case 'case.opened':
-        go('enviada', ev, 'Se envió la cotización.');
+        go(ev.data.proposal_status === 'pending' ? 'solicitud' : 'enviada', ev, ev.data.proposal_status === 'pending' ? 'El cliente solicitó una cotización; aún no hay propuesta enviada.' : 'Se envió la cotización.');
+        break;
+      case 'proposal.sent':
+        go('enviada', ev, 'El equipo preparó y publicó la propuesta en el portal.');
+        pendingDoubt = false;
         break;
       case 'proposal.viewed': {
         sectionsSeen.add(ev.data.section ?? 'general');
@@ -54,6 +59,7 @@ export function buildStages(state, interpretations = {}, nowIso = null) {
         break;
       }
       case 'message.received': {
+        if (current === 'solicitud') break;
         const intent = interpretations[ev.event_id]?.intent ?? 'question';
         if (!current) go('enviada', ev, 'Primer evento del caso.');
         if (DOUBT_INTENTS.includes(intent)) {

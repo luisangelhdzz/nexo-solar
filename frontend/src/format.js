@@ -26,6 +26,7 @@ export const LEVEL_LABEL = { low: 'Baja', medium: 'Media', high: 'Alta' };
 export const RISK_LABEL = { low: 'Bajo', medium: 'Medio', high: 'Alto' };
 
 export const EVENT_LABEL = {
+  'proposal.sent': 'Propuesta enviada',
   'case.opened': 'Propuesta enviada',
   'proposal.viewed': 'Abrió la propuesta',
   'message.received': 'Mensaje del cliente',

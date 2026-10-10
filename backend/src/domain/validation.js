@@ -10,9 +10,14 @@ function validateData(type, data) {
   switch (type) {
     case 'case.opened':
       if (data.status !== 'open') errors.push('data.status debe ser "open"');
-      if (typeof data.proposal_amount_mxn !== 'number' || !Number.isFinite(data.proposal_amount_mxn) || data.proposal_amount_mxn < 0) {
+      if (!(data.proposal_status === 'pending' && data.proposal_amount_mxn === null && isObject(data.request)) && (typeof data.proposal_amount_mxn !== 'number' || !Number.isFinite(data.proposal_amount_mxn) || data.proposal_amount_mxn < 0)) {
         errors.push('data.proposal_amount_mxn debe ser un número mayor o igual a 0');
       }
+      break;
+    case 'proposal.sent':
+      if (!isNonEmptyString(data.package_id)) errors.push('data.package_id es obligatorio');
+      if (typeof data.proposal_amount_mxn !== 'number' || !Number.isFinite(data.proposal_amount_mxn) || data.proposal_amount_mxn <= 0) errors.push('El monto de la propuesta debe ser positivo');
+      if (!isNonEmptyString(data.title)) errors.push('El título de la propuesta es obligatorio');
       break;
     case 'proposal.viewed':
       if (data.section !== undefined && typeof data.section !== 'string') {

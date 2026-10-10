@@ -189,3 +189,15 @@
 @media (max-width: 640px) {
   .app .timeline-scroll { max-height: 340px; }
 }
+
+.app .proposal-panel { margin-bottom: 1.2rem; }
+.app .request-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }
+.app .request-facts dt { color: var(--ink-faint); font-size: .8rem; margin-bottom: .3rem; }
+.app .request-facts dd { margin: 0; overflow-wrap: anywhere; }
+.app .proposal-form { display: flex; flex-direction: column; gap: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; }
+.app .proposal-form label { display: flex; flex-direction: column; gap: .4rem; font-size: .86rem; }
+.app .proposal-form input, .app .proposal-form select, .app .proposal-form textarea { padding: .7rem; width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; font: inherit; }
+.app .proposal-grid { display: grid; grid-template-columns: 1fr 180px; gap: 1rem; }
+.app .proposal-error { color: #e87070; }
+.app .request-goal { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .app .request-facts, .app .proposal-grid { grid-template-columns: 1fr; } }

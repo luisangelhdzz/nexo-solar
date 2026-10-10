@@ -371,6 +371,7 @@ export default function App() {
               evaluationAt={now}
               clockMode={status?.clock?.mode}
               onSimulate={simulate}
+              onUpdate={async (updated) => { setDetail(updated); await refresh({ focusCase: updated.case_id }); }}
               onEvaluate={evaluateAll}
               busy={busy}
             />

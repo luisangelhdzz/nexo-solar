@@ -5,6 +5,9 @@
 //
 // El portal nunca muestra la recomendación interna al cliente.
 
+import { randomUUID } from 'node:crypto';
+import { evaluateRules } from '../domain/rules.js';
+import { activeClientDelays } from '../domain/policy.js';
 import { EngineError } from '../services/engine.js';
 import { buildCaseState } from '../domain/state.js';
 import { isIsoUtc, toIso, toMs } from '../domain/time.js';
@@ -60,6 +63,13 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       case_id: state.case_id,
       package: pkg,
       amount_mxn: state.amount_mxn,
+      proposal_pending: state.proposal_pending,
+      proposal_sent_at: state.proposal_sent_at,
+      proposal: state.proposal,
+      request: state.request,
+      conversation: events.filter((e) => e.event_type === 'message.received' || (e.event_type === 'action.executed' && e.data.message)).map((e) => ({
+        event_id: e.event_id, message: e.data.message, at: e.occurred_at, from: e.event_type === 'message.received' ? 'customer' : 'team',
+      })),
       status: state.status,
       closed_status: state.closed_status,
       opened_at: state.opened_at,
@@ -74,6 +84,19 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
     };
   }
 
+  async function writableCase(caseId, action = 'contact') {
+    const events = await storage.getCaseEvents(caseId);
+    if (!events.length) throw new EngineError('No encontramos esa solicitud.', 404, 'NOT_FOUND');
+    const state = buildCaseState(caseId, events);
+    const now = await liveNow();
+    await engine.evaluate({ caseIds: [caseId] });
+    const latest = (await storage.latestDecisions())[caseId];
+    const delays = activeClientDelays(state, latest?.detail?.interpretations ?? {});
+    const rules = evaluateRules(state, now, { clientDelays: delays });
+    if (!rules.actions[action]?.allowed) throw new EngineError('El envío está bloqueado por las preferencias del cliente o la política de contacto. Revisa la recomendación vigente.', 409, 'CONTACT_BLOCKED');
+    return { events, state };
+  }
+
   async function nextCaseId() {
     const ids = await storage.listCaseIds();
     const nums = ids.map((id) => /^NS-(\d+)$/.exec(id)?.[1]).filter(Boolean).map(Number);
@@ -84,6 +107,13 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
     const all = await storage.listCustomers();
     const nums = all.map((c) => /^CUS-(\d+)$/.exec(c.customer_id)?.[1]).filter(Boolean).map(Number);
     return `CUS-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, '0')}`;
+  }
+
+  let deliveryQueue = Promise.resolve();
+  function deliver(fn) {
+    const run = deliveryQueue.then(fn);
+    deliveryQueue = run.catch(() => {});
+    return run;
   }
 
   return {
@@ -125,6 +155,65 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       };
     },
 
+    async submitRequest(customerId, input = {}) {
+      const customer = await requireCustomer(customerId);
+      const contactName = clean(input.contact_name, 80);
+      const city = clean(input.city, 60);
+      const phone = clean(input.phone, 30);
+      const email = clean(input.email, 160);
+      const channel = input.contact_channel;
+      if (!contactName || !city) throw new EngineError('Escribe tu nombre y ciudad.');
+      if (!['email', 'whatsapp', 'phone'].includes(channel)) throw new EngineError('Selecciona cómo prefieres que te contactemos.');
+      if (channel === 'email' && !isValidEmail(email)) throw new EngineError('Escribe un correo válido.');
+      if (channel !== 'email' && !/^\+?[0-9 ()-]{8,30}$/.test(phone)) throw new EngineError('Escribe un teléfono válido.');
+      if (email && !isValidEmail(email)) throw new EngineError('Escribe un correo válido.');
+      const bill = input.monthly_bill_mxn === '' || input.monthly_bill_mxn == null ? null : Number(input.monthly_bill_mxn);
+      if (bill !== null && (!Number.isFinite(bill) || bill <= 0 || bill > 10000000)) throw new EngineError('El gasto de electricidad debe ser un monto positivo.');
+      if (!['monthly', 'bimonthly'].includes(input.bill_period)) throw new EngineError('Selecciona si tu recibo es mensual o bimestral.');
+      const goal = clean(input.goal, 1000);
+      if (goal.length < 5) throw new EngineError('Cuéntanos qué necesitas para tu proyecto.');
+      if (typeof input.contact_allowed !== 'boolean') throw new EngineError('Indica si autorizas el contacto.');
+      const now = await liveNow();
+      const notBefore = input.contact_not_before || null;
+      if (notBefore && (!isIsoUtc(notBefore) || toMs(notBefore) <= toMs(now))) throw new EngineError('La fecha de contacto debe ser futura.');
+      const request = {
+        contact_name: contactName, city, phone: phone || null, email: email || null,
+        segment: clean(input.segment, 60) || customer.segment,
+        monthly_bill_mxn: bill === null ? null : bill / (input.bill_period === 'bimonthly' ? 2 : 1),
+        bill_amount_mxn: bill, bill_period: input.bill_period,
+        roof: clean(input.roof, 60) || 'Por confirmar', goal,
+        contact_channel: channel, contact_allowed: input.contact_allowed, contact_not_before: notBefore,
+      };
+      const caseId = `NS-REQ-${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`;
+      await emit(caseId, 'case.opened', { status: 'open', proposal_amount_mxn: null, customer_id: customerId, proposal_status: 'pending', request }, 0);
+      const events = await storage.getCaseEvents(caseId);
+      return caseView(buildCaseState(caseId, events), events);
+    },
+
+    async sendProposal(caseId, input = {}) {
+      return deliver(async () => {
+        const pkg = findPackage(input.package_id);
+        const amount = Number(input.amount_mxn);
+        const title = clean(input.title, 120);
+        if (!pkg || !title || !Number.isFinite(amount) || amount <= 0 || amount > 100000000) throw new EngineError('Elige una solución interna e indica un título y monto válidos.');
+        const { events, state } = await writableCase(caseId);
+        if (!state.proposal_pending) throw new EngineError('Esta propuesta ya fue enviada.', 409, 'ALREADY_SENT');
+        await emit(caseId, 'proposal.sent', { package_id: pkg.package_id, proposal_amount_mxn: amount, title, notes: clean(input.notes, 1500) }, events.length);
+        return engine.getCase(caseId);
+      });
+    },
+
+    async reply(caseId, input = {}) {
+      return deliver(async () => {
+        const message = clean(input.message, 1000);
+        if (!message) throw new EngineError('Escribe la respuesta al cliente.');
+        const action = input.action === 'request_information' ? 'request_information' : 'contact';
+        const { events } = await writableCase(caseId, action);
+        await emit(caseId, 'action.executed', { action, message, channel: 'portal' }, events.length);
+        return engine.getCase(caseId);
+      });
+    },
+
     async requestQuote(customerId, packageId) {
       await requireCustomer(customerId);
       const pkg = findPackage(packageId);
@@ -139,6 +228,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       await requireCustomer(customerId);
       if (!SECTIONS.some((s) => s.id === section)) throw new EngineError('Sección desconocida.');
       const { events, state } = await caseOf(caseId, customerId);
+      if (state.proposal_pending) throw new EngineError('La propuesta aún está en preparación.', 409, 'PROPOSAL_PENDING');
       if (state.status === 'closed') return caseView(state, events);
       await emit(caseId, 'proposal.viewed', { section }, events.length);
       const after = await storage.getCaseEvents(caseId);
@@ -183,6 +273,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n }) {
       if (!['accepted', 'rejected'].includes(decision)) throw new EngineError('Decisión inválida.');
       const { events, state } = await caseOf(caseId, customerId);
       if (state.status === 'closed') throw new EngineError('Esta cotización ya está cerrada.', 409, 'CLOSED');
+      if (state.proposal_pending) throw new EngineError('Todavía no hay una propuesta para aceptar o rechazar.', 409, 'PROPOSAL_PENDING');
       await emit(caseId, 'case.closed', { status: decision }, events.length);
       const after = await storage.getCaseEvents(caseId);
       return caseView(buildCaseState(caseId, after), after);

@@ -3,6 +3,7 @@
 export const EVENT_TYPES = [
   'case.opened',
   'proposal.viewed',
+  'proposal.sent', // extensión del portal: una solicitud pasa a propuesta enviada
   'message.received',
   'action.executed',
   'constraint.updated',

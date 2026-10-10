@@ -119,6 +119,10 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '' } 
     res.json(await engine.getCase(req.params.id));
   }));
 
+  r.get('/proposal-options', (req, res) => res.json(portal.catalog()));
+  r.post('/cases/:id/proposal', wrap(async (req, res) => res.json(await portal.sendProposal(req.params.id, req.body ?? {}))));
+  r.post('/cases/:id/reply', wrap(async (req, res) => res.json(await portal.reply(req.params.id, req.body ?? {}))));
+
   r.post('/cases/:id/events', wrap(async (req, res) => {
     res.json(await engine.addEvent(req.params.id, req.body));
   }));
@@ -191,6 +195,7 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '' } 
     p.get('/customers', wrap(async (req, res) => res.json({ customers: await portal.listCustomers() })));
     p.post('/customers', wrap(async (req, res) => res.json(await portal.createCustomer(req.body ?? {}))));
     p.get('/me', wrap(async (req, res) => res.json(await portal.getCustomerView(cid(req)))));
+    p.post('/requests', wrap(async (req, res) => res.json(await portal.submitRequest(cid(req), req.body ?? {}))));
     p.post('/quotes', wrap(async (req, res) => res.json(await portal.requestQuote(cid(req), req.body?.package_id))));
     p.post('/quotes/:id/view', wrap(async (req, res) => res.json(await portal.viewSection(cid(req), req.params.id, req.body?.section))));
     p.post('/quotes/:id/messages', wrap(async (req, res) => res.json(await portal.sendMessage(cid(req), req.params.id, req.body?.message))));

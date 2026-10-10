@@ -34,7 +34,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
     const s = await storage.getSettings();
     const mode = s.clock_mode === 'live' ? 'live' : 'manifest';
     const offsetMs = Number(s.clock_offset_ms) || 0;
-    const evaluationAt = mode === 'live' ? toIso(truncMinute(clock() + offsetMs)) : s.evaluation_at ?? null;
+    const evaluationAt = mode === 'live' ? toIso(clock() + offsetMs) : s.evaluation_at ?? null;
     return { mode, offset_ms: offsetMs, offset_hours: offsetMs / HOUR, evaluation_at: evaluationAt, manifest_evaluation_at: s.evaluation_at ?? null };
   }
 
@@ -242,7 +242,8 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       const lastSeq = events[events.length - 1].seq;
       const customerId = index.caseToCustomer[caseId] ?? null;
       const customer = await profileFor(customerId, { excludeCaseId: caseId, evaluationAt, index, eventsByCase, customersById });
-      const fingerprint = `${lastSeq}|${evaluationAt}|${providerKey}|${profileFingerprint(customer)}|L:${learning?.version ?? 'off'}`;
+      const fingerprintAt = clockInfo.mode === 'live' ? toIso(truncMinute(toMs(evaluationAt))) : evaluationAt;
+      const fingerprint = `${lastSeq}|${fingerprintAt}|${providerKey}|${profileFingerprint(customer)}|L:${learning?.version ?? 'off'}`;
       const prev = latest[caseId] ?? null;
 
       if (prev && prev.fingerprint === fingerprint && !force) {
@@ -372,6 +373,8 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       closed_status: state.closed_status,
       amount_mxn: state.amount_mxn,
       package_id: state.package_id,
+      proposal_pending: state.proposal_pending,
+      proposal_sent_at: state.proposal_sent_at,
       customer_id: cid,
       customer_name: customer?.name ?? null,
       event_count: events.length,
@@ -482,7 +485,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
         package_id: s.package_id,
         opened_at: s.opened_at,
         closed_at: s.closed_at,
-        decision_hours: s.closed_at && s.opened_at ? Math.round(((toMs(s.closed_at) - toMs(s.opened_at)) / HOUR) * 10) / 10 : null,
+        decision_hours: s.closed_at && s.opened_at ? Math.round(((toMs(s.closed_at) - toMs(s.proposal_sent_at ?? s.opened_at)) / HOUR) * 10) / 10 : null,
         recommendation: latest[s.case_id]?.recommendation ?? null,
         basis: latest[s.case_id]?.detail?.trace?.ideal?.basis ?? null,
       }));
@@ -537,6 +540,7 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
     return {
       clock: clockInfo,
       totals: {
+        requests: cases.filter((c) => c.proposal_pending && c.status !== 'closed').length,
         cases: cases.length,
         open: cases.filter((c) => c.status !== 'closed').length,
         closed: cases.filter((c) => c.status === 'closed').length,

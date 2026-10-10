@@ -17,6 +17,11 @@ export function buildCaseState(caseId, orderedEvents) {
     amount_mxn: null,
     customer_id: null, // extensión: solo en casos creados por el portal
     package_id: null,
+    request: null,
+    proposal_pending: false,
+    proposal_sent_at: null,
+    proposal_event_id: null,
+    proposal: null,
     closed_status: null,
     closed_event_id: null,
     closed_at: null,
@@ -63,6 +68,26 @@ export function buildCaseState(caseId, orderedEvents) {
         state.amount_mxn = ev.data.proposal_amount_mxn;
         state.customer_id = typeof ev.data.customer_id === 'string' ? ev.data.customer_id : null;
         state.package_id = typeof ev.data.package_id === 'string' ? ev.data.package_id : null;
+        state.request = ev.data.request ?? null;
+        state.proposal_pending = ev.data.proposal_status === 'pending';
+        state.proposal_sent_at = state.proposal_pending ? null : at;
+        state.proposal_event_id = state.proposal_pending ? null : ev.event_id;
+        if (state.request) {
+          state.contact_allowed = state.request.contact_allowed !== false;
+          state.contact_allowed_event_id = ev.event_id;
+          state.contact_not_before = state.request.contact_not_before ?? null;
+          state.contact_not_before_event_id = state.contact_not_before ? ev.event_id : null;
+        }
+        break;
+      case 'proposal.sent':
+        if (!state.proposal_pending) break;
+        state.proposal_pending = false;
+        state.proposal_sent_at = at;
+        state.proposal_event_id = ev.event_id;
+        state.amount_mxn = ev.data.proposal_amount_mxn;
+        state.package_id = ev.data.package_id;
+        state.proposal = { title: ev.data.title, notes: ev.data.notes ?? '' };
+        state.actions.push({ event_id: ev.event_id, action: 'contact', initial_proposal: true, at });
         break;
       case 'proposal.viewed':
         state.views.push({ event_id: ev.event_id, section: ev.data.section ?? null, at });
@@ -119,6 +144,7 @@ export function pendingMessages(state) {
 export function lastTouchAt(state) {
   const times = [
     state.opened_at,
+    state.proposal_sent_at,
     ...state.views.map((v) => v.at),
     ...state.messages.map((m) => m.at),
     ...state.actions.map((a) => a.at),

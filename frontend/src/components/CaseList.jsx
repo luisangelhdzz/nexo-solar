@@ -38,7 +38,7 @@ export default function CaseList({ cases, selected, onSelect }) {
               >
                 <span className="case-row-top">
                   <span className="case-id">{c.case_id}</span>
-                  <span className="case-amount">{fmtMoney(c.amount_mxn)}</span>
+                  <span className="case-amount">{c.proposal_pending ? 'Por cotizar' : fmtMoney(c.amount_mxn)}</span>
                 </span>
                 {c.customer_name && <span className="case-customer">{c.customer_name}</span>}
                 {c.stage_label && <span className={`stage-chip stage-${c.stage}`}>{c.stage_label}</span>}

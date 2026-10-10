@@ -42,7 +42,7 @@ export default function Dashboard({ summary, onOpenCase, onSeed, onKit, busy }) 
       <section className="dash-hero" aria-label="Resumen de inacción">
         <p className="dash-kicker">Con la información de {fmtUtc(now)}</p>
         <h2 className="dash-headline">
-          Lo correcto es no intervenir en {inaction.count} de {inaction.open_cases} cotizaciones abiertas.
+          Lo correcto es no intervenir en {inaction.count} de {inaction.open_cases} casos abiertos.
         </h2>
         <p className="dash-sub">
           {actNow.length === 1 ? '1 necesita' : `${actNow.length} necesitan`} una acción
@@ -51,7 +51,8 @@ export default function Dashboard({ summary, onOpenCase, onSeed, onKit, busy }) 
       </section>
 
       <div className="tiles-row">
-        <Tile value={totals.open} label="Cotizaciones abiertas" />
+        <Tile value={totals.requests ?? 0} label="Solicitudes por cotizar" tone="warn" />
+        <Tile value={totals.open} label="Casos abiertos" />
         <Tile value={inaction.count} label="No intervenir" tone="hold" />
         <Tile value={actNow.length} label="Actuar ahora" tone="go" />
         <Tile value={human.length} label="Revisión humana" tone="warn" />

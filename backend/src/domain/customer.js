@@ -29,7 +29,7 @@ export function buildCustomerProfile(customer, caseStates, { excludeCaseId = nul
   const accepted = past.filter((s) => s.closed_status === 'accepted' && s.opened_at);
   const rejected = past.filter((s) => s.closed_status === 'rejected');
   const cancelled = past.filter((s) => s.closed_status === 'cancelled');
-  const decisionHours = accepted.map((s) => round1(hoursBetween(s.opened_at, s.closed_at)));
+  const decisionHours = accepted.map((s) => round1(hoursBetween(s.proposal_sent_at ?? s.opened_at, s.closed_at)));
   const typical = median(decisionHours);
   const min = decisionHours.length ? Math.min(...decisionHours) : null;
   const max = decisionHours.length ? Math.max(...decisionHours) : null;

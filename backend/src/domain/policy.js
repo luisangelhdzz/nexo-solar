@@ -95,6 +95,18 @@ function idealAction(state, interpretations, nowIso, policy, customer) {
     };
   }
 
+  if (state.proposal_pending && !it) {
+    const missingBill = !state.request?.monthly_bill_mxn;
+    return {
+      basis: 'request', action: missingBill ? 'request_information' : 'escalate',
+      timing: missingBill ? 'within_24h' : 'immediate', scheduled_for: null,
+      evidence: [state.opened_event_id],
+      text: missingBill
+        ? 'El cliente solicitó una cotización y todavía no indicó su gasto de electricidad. Pedir ese dato para preparar una propuesta; aún no corresponde dar seguimiento a una propuesta enviada.'
+        : 'El cliente compartió los datos de su proyecto. El equipo debe revisar el consumo y la instalación y preparar la propuesta. Aún no existe una cotización enviada ni una decisión de compra.',
+    };
+  }
+
   if (it) {
     const id = latest.event_id;
     const topic = it.topic ? ` sobre ${it.topic}` : '';
@@ -142,11 +154,11 @@ function idealAction(state, interpretations, nowIso, policy, customer) {
   // Extensión (portal): buen cliente con un patrón de decisión conocido, sin peticiones
   // pendientes y sin intervenciones de la empresa en este caso. Lo correcto es NO intervenir
   // mientras esté dentro de su tiempo habitual de decisión (con margen).
-  if (customer?.reliable && customer.patience_hours && state.opened_at && !lastAction(state)) {
-    const windowEnd = addHours(state.opened_at, Math.ceil(customer.patience_hours * policy.patienceMargin));
-    const elapsed = hoursBetween(state.opened_at, nowIso);
+  if (customer?.reliable && customer.patience_hours && state.opened_at && !state.actions.some((a) => !a.initial_proposal)) {
+    const windowEnd = addHours(state.proposal_sent_at ?? state.opened_at, Math.ceil(customer.patience_hours * policy.patienceMargin));
+    const elapsed = hoursBetween(state.proposal_sent_at ?? state.opened_at, nowIso);
     const viewIds = uniq(state.views.slice(-3).map((v) => v.event_id));
-    const evidence = uniq([state.opened_event_id, ...viewIds]);
+    const evidence = uniq([state.proposal_event_id ?? state.opened_event_id, ...viewIds]);
     const views = state.views.length ? ` y la ha abierto ${state.views.length === 1 ? 'una vez' : `${state.views.length} veces`}` : '';
     const pattern = describePattern(customer);
     if (now < toMs(windowEnd)) {
@@ -204,7 +216,7 @@ function idealAction(state, interpretations, nowIso, policy, customer) {
   }
 
   if (state.opened_at) {
-    const followUpAt = addHours(state.opened_at, policy.followUpHours);
+    const followUpAt = addHours(state.proposal_sent_at ?? state.opened_at, policy.followUpHours);
     if (now < toMs(followUpAt)) {
       return {
         basis: 'opened', action: 'wait', timing: 'at_date', scheduled_for: followUpAt, evidence: [state.opened_event_id],
@@ -351,6 +363,11 @@ function assess(ideal, final, state, rules, policy, customer) {
       missing.push('Motivo por el que el cliente no ha decidido en su tiempo habitual');
       riskNotes.push('Ya pasó su tiempo habitual; un seguimiento amable reduce el riesgo de perder la venta.');
     }
+  } else if (ideal.basis === 'request') {
+    confidence = 'high';
+    confidenceNotes.push('La solicitud contiene datos estructurados proporcionados por el cliente.');
+    missing.push('Validación técnica del sitio y propuesta preparada por el equipo');
+    if (!state.request?.monthly_bill_mxn) missing.push('Gasto aproximado de electricidad');
   } else if (ideal.basis === 'views') {
     confidence = 'medium';
     confidenceNotes.push('Solo hay aperturas de la propuesta; no sabemos qué opina el cliente.');
