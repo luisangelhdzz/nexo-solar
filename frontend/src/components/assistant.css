@@ -37,3 +37,12 @@
   .app .assistant-head { flex-direction: column; }
   .app .assistant-grid { grid-template-columns: 1fr; }
 }
+
+.app .assistant-internal { margin-top: .8rem; }
+.app .assistant-internal summary { cursor: pointer; }
+.app .assistant-internal form { display: grid; gap: .7rem; margin-top: .8rem; }
+.app .assistant-internal label { display: grid; gap: .4rem; }
+.app .assistant-analyst { border: 1px solid var(--line); border-radius: 8px; padding: .8rem; }
+.app .assistant-analyst h4 { margin: 0 0 .5rem; }
+.app .assistant-analyst p { overflow-wrap: anywhere; }
+.app .assistant-appliances { overflow-x: auto; margin-top: .8rem; }

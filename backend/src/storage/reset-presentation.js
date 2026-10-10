@@ -16,7 +16,8 @@ if (!process.env.DATABASE_URL) throw new Error('Falta DATABASE_URL. Ejecuta desd
 const tables = ['ingest_batches', 'events', 'interpretations', 'decisions', 'settings', 'customers', 'invoices', 'notifications', 'lessons', 'assistant_runs', 'assistant_feedback'];
 const quoted = tables.map(t => `public."${t}"`).join(', ');
 const literal = value => `'${String(value).replaceAll("'", "''")}'`;
-const dataset = buildPresentation();
+const empty = process.argv.includes('--empty');
+const dataset = empty ? { now: new Date().toISOString(), customers: [], events: [] } : buildPresentation();
 for (const event of dataset.events) {
   const errors = validateEvent(event);
   if (errors.length) throw new Error(`${event.event_id}: ${errors.join('; ')}`);
@@ -53,7 +54,7 @@ try {
   for (const ev of dataset.events) await client.query('INSERT INTO events (event_id,case_id,event_type,occurred_at,data) VALUES ($1,$2,$3,$4,$5)', [ev.event_id,ev.case_id,ev.event_type,ev.occurred_at,JSON.stringify(ev.data)]);
   for (const [key, value] of Object.entries({ clock_mode: 'live', clock_offset_ms: 0, evaluation_at: dataset.now, learning_mode: 'auto' })) await client.query('INSERT INTO settings (key,value) VALUES ($1,$2)', [key,JSON.stringify(value)]);
   await client.query('COMMIT');
-  console.log(JSON.stringify({ reset: true, customers: dataset.customers.length, cases: 6, events: dataset.events.length }));
+  console.log(JSON.stringify({ reset: true, customers: dataset.customers.length, cases: new Set(dataset.events.map(event => event.case_id)).size, events: dataset.events.length }));
 } catch (error) {
   await client.query('ROLLBACK');
   throw error;

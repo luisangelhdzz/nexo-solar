@@ -19,9 +19,15 @@
 //   texto      la condición aprobada
 //   respuesta  (opcional) cómo decírselo al cliente en una o dos oraciones
 
-export const CONOCIMIENTO_VERSION = '2026-10-10';
+export const CONOCIMIENTO_VERSION = '2026-10-10-consumo';
 
 export const CONDICIONES = [
+  {
+    id: 'datos-consumo', tema: 'Datos para revisar el consumo', seccion: null,
+    claves: ['recibo', 'consumo', 'kwh', 'aparatos', 'electrodomesticos', 'cuartos'],
+    texto: 'Para revisar el consumo se solicita el recibo con kWh, días del periodo y tarifa, además de cantidad, potencia y horarios de los aparatos principales. El número de cuartos es contexto del inmueble y no permite calcular consumo ni cantidad de paneles. Los pesos del recibo no se convierten directamente en kWh. Si faltan datos, se solicitan; no se adivinan.',
+    respuesta: 'Comparte el consumo en kWh, los días del periodo y la tarifa de tu recibo, junto con los aparatos principales y sus horarios. Si no conoces la potencia de un aparato, podemos dejarla pendiente para revisión.',
+  },
   {
     id: 'precio-incluye',
     tema: 'Qué incluye el precio',

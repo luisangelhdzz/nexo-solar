@@ -16,6 +16,8 @@
 // y usa un identificador fijo por situación, para no mandar el mismo mensaje dos veces.
 
 import { createHash } from 'node:crypto';
+import { analystBrief } from '../ai/analyst.js';
+import { extractNumbers } from '../ai/knowledge.js';
 import { config } from '../config.js';
 import { CONTACT_ACTIONS } from '../domain/constants.js';
 import { buildCaseState, pendingMessages } from '../domain/state.js';
@@ -151,7 +153,10 @@ export function createAssistant({
   }
 
   // Ciclo completo para una cotización.
-  async function runForCase(caseId, { origin = 'manual' } = {}) {
+  async function runForCase(caseId, { origin = 'manual', analysisQuestion = '' } = {}) {
+    if (typeof analysisQuestion !== 'string' || analysisQuestion.length > 1200) throw new EngineError('La pregunta interna debe tener hasta 1200 caracteres.');
+    analysisQuestion = analysisQuestion.trim();
+    if (analysisQuestion && origin !== 'manual') throw new EngineError('Las preguntas internas solo se generan por solicitud del equipo.');
     const background = origin !== 'manual';
     const evaluationAt = await engine.getEvaluationAt();
     if (!evaluationAt) throw new EngineError('Falta la hora de evaluación: carga el manifest o activa el reloj en vivo.', 409, 'NO_EVALUATION_TIME');
@@ -181,7 +186,28 @@ export function createAssistant({
 
     // 3) La IA propone. En segundo plano no se gasta una llamada si el motor ya decidió esperar o cerrar.
     const useAI = !background || AI_ACTIONS.includes(rec.action);
-    const proposal = await proposeNextStep({ provider, detail, state, rules, knowledge, customerRecord, lessons, corrections, evaluationAt, useAI, names });
+    const proposal = await proposeNextStep({ provider, detail, state, rules, knowledge, customerRecord, lessons, corrections, evaluationAt, useAI, names, analysisQuestion });
+
+    const brief = analystBrief({ state, detail });
+    const reportedNumbers = new Set([30, state.amount_mxn, brief.questions_count, brief.purchases_recorded].filter(n => typeof n === 'number'));
+    const collect = value => { if (typeof value === 'number') reportedNumbers.add(value); else if (value && typeof value === 'object') Object.values(value).forEach(collect); };
+    collect(brief.energy);
+    const safeText = text => {
+      const numbers = extractNumbers(text);
+      // La IA no puede generar un tamaño de sistema ni cambiar las cifras calculadas.
+      return !/\d[\d,.]*\s*(?:paneles|kW\b)/i.test(text) && numbers.every(n => reportedNumbers.has(n));
+    };
+    const analysis = proposal.analyst_analysis;
+    if (analysis) {
+      for (const key of ['hypotheses', 'questions_for_client', 'checks_for_team', 'next_steps']) {
+        brief[key] = [...new Set([...brief[key], ...analysis[key].filter(safeText)])].slice(0, key === 'hypotheses' || key === 'next_steps' ? 3 : 6);
+      }
+      if (analysis.assessment && safeText(analysis.assessment)) brief.assessment = analysis.assessment;
+      else if (analysis.assessment) brief.analysis_note = 'El modelo propuso cifras sin respaldo; se conservó el análisis calculado con los datos registrados.';
+    }
+    proposal.analyst_brief = brief;
+    proposal.analysis_question = scrubPersonalData(analysisQuestion, names);
+    delete proposal.analyst_analysis;
 
     // 4) Validar con las políticas y los datos actuales.
     const approved = approvedNumbers(knowledge, caseTexts(state, detail.events));
@@ -190,7 +216,9 @@ export function createAssistant({
     if (validation.draft) validation.draft.text_for_client = fillPlaceholders(validation.draft.text, { contactName });
 
     // 5) Ejecutar lo autorizado y 6) registrar.
-    const execution = await execute({ caseId, origin, rec, state, proposal, validation, runKey });
+    const execution = analysisQuestion
+      ? { status: 'needs_review', result: { executed: 'analisis_interno', note: 'Análisis solicitado por el equipo; no se envió ningún mensaje al cliente.' } }
+      : await execute({ caseId, origin, rec, state, proposal, validation, runKey });
     const saved = await storage.saveAssistantRun({
       case_id: caseId,
       run_key: runKey,

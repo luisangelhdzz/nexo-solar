@@ -96,7 +96,7 @@ function idealAction(state, interpretations, nowIso, policy, customer) {
   }
 
   if (state.proposal_pending && !it) {
-    const missingBill = !state.request?.monthly_bill_mxn;
+    const missingBill = !state.request?.monthly_bill_mxn && !state.request?.bill_kwh;
     return {
       basis: 'request', action: missingBill ? 'request_information' : 'escalate',
       timing: missingBill ? 'within_24h' : 'immediate', scheduled_for: null,

@@ -33,3 +33,27 @@ export function buildPresentation(now = new Date().toISOString()) {
   add(5, -1, 'case.closed', { status: 'rejected', reason: 'Precio', notes: 'El cliente indicó que no cuenta con presupuesto suficiente.', closed_by: 'team' });
   return { customers, events: events.sort((a, b) => a.occurred_at.localeCompare(b.occurred_at)), now };
 }
+
+// Se agrega por separado: conserva los seis casos y cualquier solicitud del equipo.
+export function buildQuestioningCase(now = new Date().toISOString()) {
+  const customer = { customer_id: 'CUS-DEMO-07', name: 'Papelería Punto Claro', contact_name: 'Diego', city: 'Saltillo', segment: 'Comercio', notes: 'Caso ficticio: preguntas recurrentes, sin compra registrada. No implica rechazo.' };
+  const events = [];
+  const add = (h, event_type, data) => events.push({ event_id: `DEMO-07-e${events.length + 1}`, case_id: 'DEMO-07', event_type, occurred_at: new Date(Date.parse(now) + h * H).toISOString(), data });
+  add(-336, 'case.opened', { status: 'open', proposal_status: 'pending', proposal_amount_mxn: null, customer_id: customer.customer_id, request: { contact_name: 'Diego', email: 'demo7@example.com', city: 'Saltillo', segment: 'Comercio', contact_channel: 'email', contact_allowed: true, property_type: 'business', rooms: 3, bill_amount_mxn: 4800, monthly_bill_mxn: 2400, bill_period: 'bimonthly', bill_kwh: 900, billing_days: 60, tariff: '', roof: 'Azotea de concreto', goal: 'Reducir el gasto de electricidad. Tengo luces, dos computadoras y aire acondicionado.', appliances: [{ name: 'Computadora', quantity: 2, watts: 150, hours_per_day: 8, days_per_month: 26 }, { name: 'Lámpara LED', quantity: 12, watts: 15, hours_per_day: 10, days_per_month: 26 }, { name: 'Aire acondicionado', quantity: 1, watts: null, hours_per_day: 6, days_per_month: 26 }] } });
+  add(-312, 'proposal.sent', { package_id: 'PKG-COMERCIO-10', proposal_amount_mxn: 150000, title: 'Propuesta de demostración para la papelería', notes: 'Ejemplo ficticio publicado por el equipo; la viabilidad y el alcance técnico requieren revisión.' });
+  const pairs = [
+    ['¿El precio incluye la instalación?', 'El precio publicado incluye IVA, equipos e instalación estándar.'],
+    ['¿Qué garantía tienen los paneles?', 'Los paneles tienen 25 años de garantía de rendimiento y 12 años contra defectos de fabricación.'],
+    ['¿Puedo solicitar financiamiento?', 'El financiamiento está sujeto a evaluación y aprobación; no se confirma automáticamente.'],
+    ['¿Cuánto tarda la instalación?', 'El plazo particular se confirma con la revisión del sitio y la propuesta del equipo.'],
+    ['¿Los paneles siguen funcionando si se va la luz?', 'El respaldo durante apagones requiere una solución compatible; no se promete respaldo con una instalación convencional.'],
+    ['¿Me pueden explicar otra vez qué incluye el precio?', 'La propuesta publicada describe los equipos y la instalación estándar. Podemos revisar el alcance específico juntos.'],
+  ];
+  pairs.forEach(([message, response], i) => {
+    const h = -288 + i * 48;
+    add(h, 'message.received', { message });
+    add(h + 1, 'action.executed', { action: 'contact', message: response, author: 'team' });
+  });
+  add(-1, 'message.received', { message: 'Todavía no decido comprar. ¿Qué información de mis aparatos y de mi recibo necesitan para confirmar si la propuesta sirve para mi negocio?' });
+  return { customer, events };
+}

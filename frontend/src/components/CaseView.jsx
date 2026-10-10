@@ -40,9 +40,9 @@ function StagePath({ stages }) {
     <section className="panel stages-panel" aria-label="Etapas de la cotización">
       <div className="section-head">
         <h3>Etapa actual: {stages.current_label}</h3>
-        <p className="muted">Cómo avanzó la cotización y cuánto tiempo pasó en cada etapa.</p>
+
       </div>
-      <ol className="stage-path">
+      <details><summary>Ver recorrido de la cotización</summary><ol className="stage-path">
         {stages.transitions.map((t, i) => (
           <li key={`${t.stage}-${t.event_id}`} className={`stage-step stage-${t.stage} ${i === last ? 'stage-current' : ''}`}>
             <span className="stage-name">{t.label}</span>
@@ -53,7 +53,7 @@ function StagePath({ stages }) {
             <span className="stage-why muted small">{t.why}</span>
           </li>
         ))}
-      </ol>
+      </ol></details>
     </section>
   );
 }
@@ -133,7 +133,7 @@ function DecisionHero({ rec, trace, evaluatedAt }) {
         <h2 className="hero-action">{ACTION_LABEL[rec.action]}</h2>
         <p className="hero-when">{timingText(rec)}</p>
       </div>
-      <div className="hero-facts">
+      <details className="hero-details"><summary>Ver confianza y riesgo</summary><div className="hero-facts">
         <div>
           <span className="fact-label">Confianza</span>
           <span className={`fact-value lvl-${rec.confidence}`}>{LEVEL_LABEL[rec.confidence]}</span>
@@ -147,6 +147,7 @@ function DecisionHero({ rec, trace, evaluatedAt }) {
           <span className="fact-value">{rec.requires_human_review ? 'Sí' : 'No'}</span>
         </div>
       </div>
+      </details>
       {trace?.guardian?.replaced && (
         <p className="hero-warning">
           El validador reemplazó la recomendación original ({trace.guardian.replaced_reason}).

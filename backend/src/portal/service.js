@@ -16,6 +16,7 @@ import { buildInvoice, isValidEmail } from './invoice.js';
 import { sendToN8n } from './n8n.js';
 import { proposalEmail, requestReceivedEmail, portalLink } from './correos.js';
 import { createNotifier, maskEmail, sendWithRetry } from './notifier.js';
+import { normalizeEnergyInput } from '../domain/energy.js';
 import { config } from '../config.js';
 
 const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -352,7 +353,9 @@ export function createPortal({
       const now = await liveNow();
       const notBefore = input.contact_not_before || null;
       if (notBefore && (!isIsoUtc(notBefore) || toMs(notBefore) <= toMs(now))) throw new EngineError('La fecha de contacto debe ser futura.');
+      const energy = normalizeEnergyInput(input);
       const request = {
+        ...energy,
         contact_name: contactName, city, phone: phone || null, email: email || null,
         segment: clean(input.segment, 60) || customer.segment,
         monthly_bill_mxn: bill === null ? null : bill / (input.bill_period === 'bimonthly' ? 2 : 1),

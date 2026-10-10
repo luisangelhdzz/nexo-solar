@@ -137,7 +137,7 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '', a
   if (assistant) {
     r.get('/assistant/status', wrap(async (req, res) => res.json(await assistant.status())));
     r.get('/cases/:id/assistant', wrap(async (req, res) => res.json(await assistant.latest(req.params.id))));
-    r.post('/cases/:id/assistant', wrap(async (req, res) => res.json(await assistant.runForCase(req.params.id, { origin: 'manual' }))));
+    r.post('/cases/:id/assistant', wrap(async (req, res) => res.json(await assistant.runForCase(req.params.id, { origin: 'manual', analysisQuestion: req.body?.analysis_question ?? '' }))));
   }
 
   r.post('/cases/:id/events', wrap(async (req, res) => {

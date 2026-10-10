@@ -66,7 +66,7 @@ export const api = {
   reply: (id, body) => request('POST', `/cases/${encodeURIComponent(id)}/reply`, body),
   assistantStatus: () => request('GET', '/assistant/status'),
   assistant: (id) => request('GET', `/cases/${encodeURIComponent(id)}/assistant`),
-  runAssistant: (id) => request('POST', `/cases/${encodeURIComponent(id)}/assistant`, {}),
+  runAssistant: (id, analysisQuestion = '') => request('POST', `/cases/${encodeURIComponent(id)}/assistant`, { analysis_question: analysisQuestion }),
   caseDetail: (id) => request('GET', `/cases/${encodeURIComponent(id)}`),
   customers: () => request('GET', '/customers'),
   customer: (id) => request('GET', `/customers/${encodeURIComponent(id)}`),

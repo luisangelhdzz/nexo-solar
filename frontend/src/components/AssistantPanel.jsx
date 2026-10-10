@@ -30,6 +30,8 @@ export default function AssistantPanel({ detail, onUseDraft, disabled }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [question, setQuestion] = useState('');
+  useEffect(() => { setQuestion(''); }, [caseId]);
 
   const load = useCallback(async () => {
     try {
@@ -55,11 +57,11 @@ export default function AssistantPanel({ detail, onUseDraft, disabled }) {
     return () => clearInterval(id);
   }, [waiting, load]);
 
-  const generate = async () => {
+  const generate = async (analysisQuestion = '') => {
     setLoading(true);
     setError('');
     try {
-      const run = await api.runAssistant(caseId);
+      const run = await api.runAssistant(caseId, analysisQuestion);
       setData((d) => ({ ...(d || {}), run, current: true }));
     } catch (e) {
       setError(e.message);
@@ -80,10 +82,18 @@ export default function AssistantPanel({ detail, onUseDraft, disabled }) {
             {data?.mode ? ` · ${MODE[data.mode] ?? data.mode}` : ''}.
           </p>
         </div>
-        <button type="button" className="btn btn-small" onClick={generate} disabled={loading || disabled}>
+        <button type="button" className="btn btn-small" onClick={() => generate()} disabled={loading || disabled}>
           {loading ? 'Pensando…' : run ? 'Generar de nuevo' : 'Generar propuesta'}
         </button>
       </div>
+      <details className="assistant-internal">
+        <summary>Consultar al asistente como analista</summary>
+        <form onSubmit={(e) => { e.preventDefault(); generate(question.trim()); }}>
+          <label>¿Qué necesitas analizar?<textarea required minLength={5} maxLength={1200} rows={2} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="¿Qué datos de consumo faltan y qué aparatos debemos revisar antes de cotizar?" /></label>
+          <button type="submit" className="btn btn-small" disabled={loading || disabled || question.trim().length < 5}>{loading ? 'Analizando…' : 'Analizar para el equipo'}</button>
+          <p className="muted small">Esta consulta es interna y no envía mensajes al cliente.</p>
+        </form>
+      </details>
       {ai?.note && ai.mode === 'ai' && <p className="assistant-alert small">{ai.note}</p>}
       {error && <p className="proposal-error" role="alert">{error}</p>}
       {!run && !loading && <p className="muted small">{waiting ? 'El asistente está preparando su propuesta…' : 'Aún no hay propuesta del asistente para esta cotización.'}</p>}
@@ -97,18 +107,18 @@ function AssistantRun({ run, current, waiting, onUseDraft, disabled }) {
   const v = run.validation;
   const st = STATUS[run.status] ?? { label: run.status, tone: 'hold' };
   const draft = v.draft;
-  const failed = v.checks.filter((c) => !c.ok);
   const canUse = draft && v.allowed_now && ['contact', 'request_information', 'resolve_objection'].includes(v.authorized.action) && !['sent', 'sent_by_team'].includes(run.status);
   return (
     <div className="assistant-run">
       <div className="assistant-meta">
         <span className={`pill assistant-tone-${st.tone}`}>{st.label}</span>
-        <span className="pill">{run.source === 'plantilla' ? 'Plantilla (sin IA)' : `${run.source} · ${run.model}`}</span>
-        <span className="muted small">{ORIGIN[run.origin] ?? run.origin} · {fmtUtc(run.created_at)}</span>
+        <span className="pill">{run.source === 'plantilla' ? 'Plantilla (sin IA)' : run.source}</span>
+
       </div>
       {!current && <p className="assistant-alert small">{waiting ? 'Hay cambios en la cotización; el asistente está preparando una propuesta nueva.' : 'Hay cambios después de esta propuesta. Genera una nueva para usarla.'}</p>}
       {(p.fallback_reason || p.note) && <p className="muted small">{p.fallback_reason || p.note}</p>}
 
+      {p.analyst_brief && <AnalystBrief brief={p.analyst_brief} question={p.analysis_question} />}
       <p className="assistant-next"><strong>{ACTION_LABEL[v.authorized.action] ?? v.authorized.action}</strong> · {timingText(v.authorized)}</p>
       <details className="assistant-checks"><summary>Ver análisis del asistente</summary><dl className="assistant-grid">
         <div><dt>Resumen</dt><dd>{p.summary}</dd></div>
@@ -156,7 +166,8 @@ function AssistantRun({ run, current, waiting, onUseDraft, disabled }) {
       {run.result?.note && <p className="muted small">{run.result.note}{run.result.next_review_at ? ` Próxima revisión: ${fmtUtc(run.result.next_review_at)}.` : ''}</p>}
 
       <details className="assistant-checks">
-        <summary>Validaciones del backend ({v.checks.length - failed.length}/{v.checks.length} correctas)</summary>
+        <summary>Comprobaciones y detalles</summary>
+        <p className="muted small">{run.model} · {ORIGIN[run.origin] ?? run.origin} · {fmtUtc(run.created_at)}</p>
         <ul>
           {v.checks.map((c) => (
             <li key={c.id} className={c.ok ? 'ok' : c.severity === 'warning' ? 'warn' : 'bad'}>
@@ -167,4 +178,29 @@ function AssistantRun({ run, current, waiting, onUseDraft, disabled }) {
       </details>
     </div>
   );
+}
+
+function AnalystBrief({ brief, question }) {
+  const e = brief.energy;
+  const value = (n, unit) => n == null ? 'Falta dato' : `${n.toLocaleString('es-MX')} ${unit}`;
+  return <section className="assistant-analyst" aria-label="Análisis para preparar la cotización">
+    <h4>Análisis para preparar la cotización</h4>
+    {question && <details className="assistant-checks" open><summary>Respuesta a tu consulta</summary><p className="muted small">{question}</p><p>{brief.assessment}</p></details>}
+    <dl className="assistant-grid">
+      <div><dt>Consumo reportado</dt><dd>{value(e.reported_kwh, 'kWh')}{e.billing_days ? ` en ${e.billing_days} días` : ''}</dd></div>
+      <div><dt>Consumo · 30 días</dt><dd>{value(e.normalized_kwh_30_days, 'kWh')}</dd></div>
+      <div><dt>Aparatos · estimación</dt><dd>{value(e.inventory_estimated_kwh_month, 'kWh/mes')}{e.appliances.length > 0 && !e.inventory_complete && <span className="assistant-note">Completar datos de aparatos.</span>}</dd></div>
+      <div><dt>Inmueble</dt><dd>{e.property_type === 'home' ? 'Casa' : 'Negocio'}{e.rooms ? ` · ${e.rooms} cuartos o áreas` : ''}</dd></div>
+    </dl>
+    {brief.questions_count >= 4 && <p className="assistant-alert small">{brief.questions_count} preguntas · Compra pendiente</p>}
+    {brief.analysis_note && <p className="assistant-alert small">{brief.analysis_note}</p>}
+    <p className="assistant-next"><strong>Para el equipo:</strong> {brief.next_steps[0]}</p>
+    <details className="assistant-checks"><summary>Qué falta para cotizar</summary>
+      {!question && <p>{brief.assessment}</p>}
+      <p className="muted small">{brief.commercial_signal}</p>
+      {[['Pedir al cliente', brief.questions_for_client], ['Validar con el equipo', brief.checks_for_team], ['Siguiente paso interno', brief.next_steps], ['Hipótesis por confirmar', brief.hypotheses]].map(([label, items]) => items.length > 0 && <div key={label}><h5>{label}</h5><ul>{items.map(item => <li key={item}>{item}</li>)}</ul></div>)}
+      {e.appliances.length > 0 && <div className="assistant-appliances"><table><thead><tr><th>Aparato</th><th>Cantidad</th><th>Estimación kWh/mes</th></tr></thead><tbody>{e.appliances.map((a, i) => <tr key={i}><td>{a.name}</td><td>{a.quantity}</td><td>{value(a.estimated_kwh_month, 'kWh')}</td></tr>)}</tbody></table></div>}
+      <p className="muted small">{e.method}</p><ul>{e.limitations.map(text => <li key={text}>{text}</li>)}</ul>
+    </details>
+  </section>;
 }

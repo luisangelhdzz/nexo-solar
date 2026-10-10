@@ -769,3 +769,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .funnel-row { grid-template-columns: 80px minmax(0, 1fr) 28px; }
   .funnel-now { grid-column: 2 / -1; }
 }
+
+.app .hero-details summary { cursor: pointer; font-size: .82rem; color: var(--ink-soft); }
+.app .hero-details .hero-facts { margin-top: .7rem; }
+
+@media (min-width: 1200px) { .app .tiles-row { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.app .stages-panel summary { cursor: pointer; color: var(--ink-soft); font-size: .82rem; }
+.app .stage-path { max-height: 280px; overflow-y: auto; }

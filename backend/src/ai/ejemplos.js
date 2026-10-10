@@ -96,6 +96,36 @@ export const EJEMPLOS = [
       human_review_reason: 'Hay una pregunta pendiente pero el contacto está prohibido (R2).',
     },
   },
+  {
+    titulo: 'Análisis energético interno: datos reportados y faltantes',
+    contexto: 'Análisis calculado: recibo de 600 kWh durante 60 días, promedio de 300 kWh en 30 días. Casa de 4 cuartos. Aparatos sin potencia registrada. Motor: escalate, immediate.',
+    cliente: '¿Con los cuartos pueden saber cuántos paneles necesito?',
+    respuesta: {
+      proposed_action: 'escalate', timing: 'immediate', draft_message: null,
+      requires_human_review: true,
+      analyst_analysis: {
+        assessment: 'El consumo normalizado es 300 kWh en 30 días. Los cuartos no permiten dimensionar paneles; faltan datos de aparatos y evaluación del sitio.',
+        hypotheses: [], questions_for_client: ['Solicitar tarifa, potencia, cantidad y horarios de los aparatos.'],
+        checks_for_team: ['Revisar recibo, sombras y superficie útil.'], next_steps: ['Completar inventario y evaluación técnica.'],
+      },
+    },
+  },
+  {
+    titulo: 'Muchas preguntas sin compra: aclarar el obstáculo sin presión',
+    contexto: 'Varias dudas respondidas y una pendiente. No existe aceptación ni rechazo. Motor: resolve_objection, immediate.',
+    cliente: '¿Qué necesitan del recibo para confirmar la propuesta? Todavía no decido.',
+    respuesta: {
+      proposed_action: 'resolve_objection', timing: 'immediate', requires_human_review: false,
+      analyst_analysis: {
+        assessment: 'La venta está pendiente. Las preguntas repetidas no demuestran que nunca comprará.',
+        hypotheses: ['Podría estar comparando alternativas; confirmar con el cliente.'],
+        questions_for_client: ['¿Qué duda o condición necesitas resolver para decidir?'],
+        checks_for_team: ['Revisar dudas ya respondidas y contestar la pendiente.'],
+        next_steps: ['Reunir la información aprobada en una respuesta clara.'],
+      },
+    },
+  },
+
 ];
 
 export function examplesForPrompt(examples = EJEMPLOS) {

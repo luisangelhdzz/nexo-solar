@@ -398,3 +398,13 @@ frontend/
 API de este flujo: `POST /api/portal/requests`, `GET /api/proposal-options`, `POST /api/cases/:id/proposal`, `POST /api/cases/:id/reply`.
 
 Los correos nuevos incluyen un enlace directo con acceso limitado a su cotización. Para correos anteriores o enlaces vencidos, usa **Generar enlace del cliente** en la consola y compártelo únicamente con el destinatario. Los tokens se guardan como hashes en la base y el navegador conserva la credencial en la sesión de la pestaña.
+
+### Análisis interno de consumo
+
+En una cotización, abre **Consultar al asistente como analista**. Ejemplo: “¿Qué datos de consumo faltan y qué aparatos debemos revisar?”. Esta consulta no envía mensajes al cliente, incluso en modo automático.
+
+El formulario admite datos opcionales de casa o negocio, cuartos, kWh, días del recibo, tarifa y aparatos (cantidad, watts, horas al día y días al mes). El backend calcula kWh normalizados a 30 días y estimaciones por aparato. Un inventario incompleto no produce un total; los cuartos o los pesos no se convierten en consumo. El dimensionamiento solar requiere revisión técnica.
+
+La fórmula de estimación es cantidad × watts × horas × días ÷ 1000. [Referencia de Virginia Tech Extension](https://ext.vt.edu/content/pubs_ext_vt_edu/en/2901/2901-9014/2901-9014.html). Equipos con ciclos requieren validar el consumo real.
+
+Gemini recibe instrucciones, ejemplos y datos del caso en cada consulta; esta mejora no modifica los pesos del modelo. Para agregar únicamente el caso ficticio **Papelería Punto Claro (DEMO-07)**, conservando los existentes: `npm run db:add-questioning --prefix backend`. El comando no borra casos ni envía correos y no duplica DEMO-07 si ya existe.
