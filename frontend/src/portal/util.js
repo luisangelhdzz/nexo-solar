@@ -11,6 +11,7 @@ export function parseHash(hash = window.location.hash) {
     page: parts[0] || 'inicio',
     arg: parts[1] ? decodeURIComponent(parts.slice(1).join('/')) : null,
     q: new URLSearchParams(qs).get('q') || '',
+    access: new URLSearchParams(qs).get('access') || '',
   };
 }
 

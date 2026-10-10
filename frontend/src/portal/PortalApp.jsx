@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { portalApi, portalCustomer } from '../api.js';
+import { portalApi, portalCustomer, portalAccess } from '../api.js';
 import { BotonCotizaciones, HomePage, MenuBar, Pie, SECCION_DE_RUTA, useSeccionActiva } from './Storefront.jsx';
 import { dateMx, dayMx, go, money, parseHash } from './util.js';
 import { packagePhoto } from './photos.js';
@@ -35,64 +35,13 @@ const STATUS = {
 };
 const statusOf = (q) => (q.status === 'closed' ? STATUS[q.closed_status] : q.proposal_pending ? { label: 'Solicitud recibida', cls: 'st-open' } : STATUS.open);
 
-function PickCompany({ onPicked, onError }) {
-  const [list, setList] = useState(null);
-  const [form, setForm] = useState({ name: '', contact_name: '', segment: '', city: '' });
-  const [creating, setCreating] = useState(false);
-
-  useEffect(() => {
-    portalApi.customers().then((r) => setList(r.customers)).catch((e) => onError(e.message));
-  }, [onError]);
-
-  return (
-    <main className="p-main">
-      <section className="p-hero">
-        <h1>Energía solar para tu negocio</h1>
-        <p>Pide tu cotización, revísala con calma y decide cuando estés listo.</p>
-      </section>
-
-      <section className="p-card">
-        <h2>¿Con qué empresa entras?</h2>
-        {!list && <p className="p-muted">Cargando…</p>}
-        {list && !list.length && <p className="p-muted">Aún no hay empresas. Registra la tuya.</p>}
-        <ul className="p-companies">
-          {list?.map((c) => (
-            <li key={c.customer_id}>
-              <button type="button" className="p-company" onClick={() => onPicked(c.customer_id)}>
-                <strong>{c.name}</strong>
-                <span>{[c.segment, c.city].filter(Boolean).join(', ')}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="p-card">
-        <h2>Registrar mi empresa</h2>
-        <form
-          className="p-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setCreating(true);
-            try {
-              const c = await portalApi.createCustomer(form);
-              onPicked(c.customer_id);
-            } catch (err) {
-              onError(err.message);
-            } finally {
-              setCreating(false);
-            }
-          }}
-        >
-          <label>Nombre de la empresa<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required maxLength={80} placeholder="Ej.: Ferretería Los Pinos" /></label>
-          <label>Tu nombre<input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} maxLength={80} /></label>
-          <label>Giro<input value={form.segment} onChange={(e) => setForm({ ...form, segment: e.target.value })} maxLength={40} placeholder="Ej.: Comercio" /></label>
-          <label>Ciudad<input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={60} /></label>
-          <button type="submit" className="p-btn p-btn-sun" disabled={creating}>Registrar y entrar</button>
-        </form>
-      </section>
-    </main>
-  );
+function PortalEntry() {
+  return <main className="p-main"><section className="p-card">
+    <h1>Accede a tu cotización</h1>
+    <p>Abre el enlace que te enviamos por correo para revisar tu solicitud o propuesta.</p>
+    <p className="p-muted">Si el enlace venció o no encuentras el correo, solicita uno nuevo al equipo de Nexo Solar.</p>
+    <button type="button" className="p-btn p-btn-sun" onClick={() => go('cotizar')}>Solicitar una cotización</button>
+  </section></main>;
 }
 
 function QuoteHome({ me, onOpen, onSwitch }) {
@@ -101,7 +50,7 @@ function QuoteHome({ me, onOpen, onSwitch }) {
       <section className="p-hero p-hero-small">
         <h1>Hola{me.customer.contact_name ? `, ${me.customer.contact_name.split(' ')[0]}` : ''}</h1>
         <p>{me.customer.name}</p>
-        <button type="button" className="p-link p-link-light" onClick={onSwitch}>No soy yo, cambiar de empresa</button>
+        <button type="button" className="p-link p-link-light" onClick={onSwitch}>Cerrar sesión</button>
       </section>
 
       {me.quotes.length > 0 && (
@@ -381,23 +330,31 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onRefresh, onBack, o
 }
 
 export default function PortalApp() {
-  const [customerId, setCustomerId] = useState(portalCustomer.get());
+  const [customerId, setCustomerId] = useState(() => parseHash().access ? null : portalAccess.get() ? portalCustomer.get() : null);
   const [me, setMe] = useState(null);
   const [catalog, setCatalog] = useState(null);
   const [route, setRoute] = useState(() => parseHash());
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [openingAccess, setOpeningAccess] = useState(() => Boolean(parseHash().access));
 
   const showError = useCallback((msg) => setError(msg), []);
 
   const load = useCallback(async (cid) => {
     if (!cid) return;
+    const credential = portalAccess.get();
     try {
-      setMe(await portalApi.me(cid));
+      const view = await portalApi.me(cid);
+      if (credential !== portalAccess.get()) return;
+      setMe(view);
     } catch (e) {
+      if (credential !== portalAccess.get()) return;
       if (e.status === 401) {
         portalCustomer.set(null);
+        portalAccess.set(null);
         setCustomerId(null);
+        setMe(null);
+        setError(e.message);
       } else setError(e.message);
     }
   }, []);
@@ -419,6 +376,33 @@ export default function PortalApp() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
+  useEffect(() => {
+    if (!route.access) return;
+    let cancelled = false;
+    setOpeningAccess(true);
+    setMe(null);
+    setCustomerId(null);
+    portalCustomer.set(null);
+    portalAccess.set(route.access);
+    portalApi.me().then((view) => {
+      if (cancelled) return;
+      if (route.page !== 'cotizacion' || view.access_case_id !== route.arg) throw new Error('Este enlace no corresponde a la cotización solicitada.');
+      portalCustomer.set(view.customer.customer_id);
+      setCustomerId(view.customer.customer_id);
+      setMe(view);
+      setError(null);
+      // El secreto queda en la sesión de esta pestaña; se retira de la barra de direcciones.
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/cotizacion/${encodeURIComponent(view.access_case_id)}`);
+      setOpeningAccess(false);
+      setRoute(parseHash());
+    }).catch((e) => {
+      if (cancelled) return;
+      portalAccess.set(null);
+      setError(e.message);
+    }).finally(() => { if (!cancelled) setOpeningAccess(false); });
+    return () => { cancelled = true; };
+  }, [route.access, route.arg, route.page]);
+
   const inQuoteSection = ['cotizar', 'mis-cotizaciones', 'cotizacion'].includes(route.page);
 
   // Las rutas de las secciones del inicio (#/productos, #/como-cotizar, #/contacto) bajan
@@ -439,6 +423,7 @@ export default function PortalApp() {
   };
   const switchCompany = () => {
     portalCustomer.set(null);
+    portalAccess.set(null);
     setCustomerId(null);
     setMe(null);
     go('mis-cotizaciones');
@@ -448,7 +433,7 @@ export default function PortalApp() {
   const submitRequest = async (form) => {
     setBusy(true); setError(null);
     try {
-      let cid = customerId;
+      let cid = me?.access_case_id ? null : customerId;
       if (!cid) { const c = await portalApi.createCustomer(form); cid = c.customer_id; pick(cid); }
       const q = await portalApi.submitRequest(cid, form);
       await load(cid);
@@ -466,10 +451,12 @@ export default function PortalApp() {
 
   let page;
   if (inQuoteSection) {
-    if (route.page === 'cotizar') page = <RequestForm customer={me?.customer} onSubmit={submitRequest} busy={busy} />;
-    else if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
+    if (openingAccess) page = <main className="p-main"><p role="status">Abriendo tu cotización…</p></main>;
+    else if (route.page === 'cotizar') page = <RequestForm customer={me?.customer} onSubmit={submitRequest} busy={busy} />;
+    else if (!customerId) page = <PortalEntry />;
     else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
     else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onRefresh={refresh} onBack={() => go('mis-cotizaciones')} onError={showError} />;
+    else if (route.page === 'cotizacion') page = <main className="p-main"><section className="p-card"><h1>No encontramos esta cotización</h1><p>Revisa el enlace que recibiste por correo.</p></section></main>;
     else page = <QuoteHome me={me} onOpen={openQuote} onSwitch={switchCompany} />;
   } else {
     page = <HomePage />;

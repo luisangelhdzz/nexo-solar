@@ -225,3 +225,7 @@
 .app .caseview > .case-more { margin: 12px 0; }
 .app .close-panel .proposal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 620px) { .app .close-panel .proposal-grid { grid-template-columns: 1fr; } }
+
+.client-access-link { display: grid; gap: 12px; margin: 16px 0; }
+.client-access-link label { display: grid; gap: 8px; }
+.client-access-link input { width: 100%; min-width: 0; box-sizing: border-box; }

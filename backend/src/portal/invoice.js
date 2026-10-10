@@ -20,7 +20,7 @@ export function invoiceNumberFor(caseId) {
   return `NS-C-${String(caseId).replace(/[^A-Za-z0-9]/g, '')}`;
 }
 
-export function buildInvoice({ caseId, customer, request = null, pkg, amount, email, issuedAt, publicUrl = config.publicUrl }) {
+export function buildInvoice({ caseId, customer, request = null, pkg, amount, email, issuedAt, publicUrl = config.publicUrl, accessToken = null }) {
   const total = Number(amount);
   const subtotal = Math.round((total / 1.16) * 100) / 100;
   const iva = Math.round((total - subtotal) * 100) / 100;
@@ -29,7 +29,7 @@ export function buildInvoice({ caseId, customer, request = null, pkg, amount, em
   const date = new Date(issuedAt).toLocaleString('es-MX', { timeZone: 'America/Monterrey', dateStyle: 'long', timeStyle: 'short' });
   const subject = `Comprobante de compra ${invoiceNumber} | Nexo Solar`;
   const name = greetingName({ request, customer });
-  const url = portalLink(caseId, publicUrl);
+  const url = portalLink(caseId, publicUrl, accessToken);
   const money = (n) => `${moneyMx(n, { decimals: true })} MXN`;
   const nowrap = (html) => `<span style="white-space:nowrap">${html}</span>`;
 

@@ -159,7 +159,7 @@ Las reglas R1–R6 nunca se aprenden ni cambian.
 
 Empresa ficticia, sin cobros reales. Desde el celular:
 
-1. **Entrar:** elige una empresa de la lista o registra la tuya.
+1. **Entrar:** solicita tu proyecto o abre el enlace privado de tu correo. El enlace abre directamente esa cotización; no existe un selector público de empresas.
 2. **Solicitar una cotización:** formulario de negocio, contacto, gasto de luz, instalación y preferencias. Genera `case.opened` con `proposal_status=pending`, sin monto ni propuesta enviada, y el cliente recibe por correo el acuse con el resumen. El equipo selecciona una solución de referencia interna y publica el precio y alcance desde el dashboard; `proposal.sent` inicia la etapa Enviada y la propuesta también llega al correo del cliente.
 3. **Revisar secciones:** precio, instalación, garantía, financiamiento y entrega. Cada apertura genera `proposal.viewed`.
 4. **Escribir una duda:** genera `message.received`.
@@ -290,11 +290,11 @@ Si algo falla, publica `wait` con revisión humana.
 | GET, POST | `/api/cases/:id/assistant` | Última propuesta del asistente para el caso / generar una nueva |
 | POST | `/api/cases/:id/reply` | Responder en el portal; con `assistant_run_id` guarda la corrección del equipo al borrador |
 
-**Portal** (público, `x-customer-id`):
+**Portal** (catálogo y registro públicos; las cotizaciones requieren `x-portal-access`, una credencial aleatoria con vigencia de 30 días):
 
 | Método | Ruta |
 |---|---|
-| GET | `/api/portal/catalog`, `/api/portal/customers`, `/api/portal/me` |
+| GET | `/api/portal/catalog`, `/api/portal/me` (con credencial) |
 | POST | `/api/portal/customers` |
 | POST | `/api/portal/quotes` |
 | POST | `/api/portal/quotes/:id/view`, `/messages`, `/contact`, `/accept`, `/reject`, `/invoice` |
@@ -339,7 +339,7 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
 1. **Kit (50 s).** Carga el kit del reto. Muestra P01 (evidencia), P04 (contacto bloqueado por R2) y P06 cambiando con `updates.jsonl`.
 2. **Resumen (20 s).** Carga los datos de demostración. Muestra "Lo correcto es no intervenir en X de Y" y el porqué de cada espera.
 3. **Venta en vivo desde el celular (1 min 40 s).**
-   - Un compañero entra al portal como **Abarrotes La Esperanza** (3 compras, decide en ~47 h) o registra su empresa.
+   - Un compañero abre el enlace del cliente generado desde la cotización en la consola, o registra una solicitud nueva.
    - Pide una cotización y abre el precio y la garantía.
    - En la consola: **Esperar**, "Lo correcto es no intervenir", con la barra de su ventana de paciencia.
    - Adelanta el reloj +48 h: sigue en espera. +24 h más: pasa a un seguimiento amable.
@@ -352,7 +352,7 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
 
 - El clasificador de respaldo usa patrones en español.
 - Las fechas relativas sin hora se fijan a las 15:00 UTC.
-- El portal no tiene autenticación real de clientes: es una demo con empresas ficticias.
+- El portal usa enlaces de acceso de 30 días. Quien tenga el enlace puede revisar y responder esa cotización; no hay cuentas con contraseña ni verificación adicional de identidad. Los folios y los identificadores de empresa por sí solos no permiten acceder. La demo usa empresas ficticias.
 - El comprobante no es una factura fiscal (CFDI).
 - Las condiciones comerciales de `backend/src/ai/conocimiento.js` (garantías, tiempos, financiamiento) son de demostración.
 - En el plan gratuito de Gemini, Google puede usar lo que se envía para mejorar sus productos; por eso el asistente no envía datos personales y la demo usa empresas ficticias.
@@ -396,3 +396,5 @@ frontend/
 - Gemini y el asistente autónomo ya están integrados ([docs/GEMINI.md](docs/GEMINI.md)). Por defecto el asistente prepara borradores y el equipo confirma los envíos; con `ASSISTANT_AUTOPILOT=auto` solo envía lo que pasa todas las validaciones.
 
 API de este flujo: `POST /api/portal/requests`, `GET /api/proposal-options`, `POST /api/cases/:id/proposal`, `POST /api/cases/:id/reply`.
+
+Los correos nuevos incluyen un enlace directo con acceso limitado a su cotización. Para correos anteriores o enlaces vencidos, usa **Generar enlace del cliente** en la consola y compártelo únicamente con el destinatario. Los tokens se guardan como hashes en la base y el navegador conserva la credencial en la sesión de la pestaña.

@@ -26,8 +26,8 @@ export function moneyMx(n, { decimals = false } = {}) {
   return `$${value.toLocaleString('es-MX', decimals ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 2 })}`;
 }
 
-export function portalLink(caseId, base = config.publicUrl) {
-  return `${String(base || '').replace(/\/+$/, '')}/portal#/cotizacion/${encodeURIComponent(caseId)}`;
+export function portalLink(caseId, base = config.publicUrl, accessToken = null) {
+  return `${String(base || '').replace(/\/+$/, '')}/portal#/cotizacion/${encodeURIComponent(caseId)}${accessToken ? `?access=${encodeURIComponent(accessToken)}` : ''}`;
 }
 
 export function greetingName({ request, customer } = {}) {
@@ -100,9 +100,9 @@ function base({ event, id, to, subject, html, text, caseId, customer, portalUrl,
 }
 
 // ---------- 1. Solicitud recibida ----------
-export function requestReceivedEmail({ caseId, customer, request, to, publicUrl = config.publicUrl }) {
+export function requestReceivedEmail({ caseId, customer, request, to, publicUrl = config.publicUrl, accessToken = null }) {
   const name = greetingName({ request, customer });
-  const url = portalLink(caseId, publicUrl);
+  const url = portalLink(caseId, publicUrl, accessToken);
   const subject = `Recibimos tu solicitud de cotización · ${caseId} | Nexo Solar`;
   const facts = [
     ['Folio', `<b>${esc(caseId)}</b>`],
@@ -148,9 +148,9 @@ export function requestReceivedEmail({ caseId, customer, request, to, publicUrl 
 }
 
 // ---------- 2. Propuesta enviada ----------
-export function proposalEmail({ caseId, customer, request, proposal, pkg, amount, to, publicUrl = config.publicUrl }) {
+export function proposalEmail({ caseId, customer, request, proposal, pkg, amount, to, publicUrl = config.publicUrl, accessToken = null }) {
   const name = greetingName({ request, customer });
-  const url = portalLink(caseId, publicUrl);
+  const url = portalLink(caseId, publicUrl, accessToken);
   const title = proposal?.title || pkg?.name || 'Tu propuesta solar';
   const subject = `Tu propuesta de Nexo Solar está lista · ${caseId}`;
   const facts = [

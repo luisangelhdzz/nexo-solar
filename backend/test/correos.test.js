@@ -73,7 +73,7 @@ async function fullFlow(storage) {
     assert.match(ack.body.html, /Hola Ana Prueba/);
     assert.match(ack.body.html, /Reducir el gasto de luz de mi tienda/);
     assert.match(ack.body.html, /\$8,000 MXN bimestrales/);
-    assert.equal(ack.body.portal_url, `https://nexo-solar.onrender.com/portal#/cotizacion/${q.case_id}`);
+    assert.ok(ack.body.portal_url.startsWith(`https://nexo-solar.onrender.com/portal#/cotizacion/${q.case_id}?access=`));
     let view = (await portal.getCustomerView(cid)).quotes[0];
     assert.deepEqual({ status: view.email_copy.status, email: view.email_copy.email }, { status: 'sent', email: 'an***@example.com' });
 

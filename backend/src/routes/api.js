@@ -119,6 +119,7 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '', a
     res.json(await engine.getCase(req.params.id));
   }));
 
+  r.post('/cases/:id/portal-link', wrap(async (req, res) => { res.set('Cache-Control', 'no-store'); res.json(await portal.createCaseLink(req.params.id)); }));
   r.post('/cases/:id/close', wrap(async (req, res) => res.json(await portal.closeCase(req.params.id, req.body ?? {}))));
 
   r.get('/proposal-options', (req, res) => res.json(portal.catalog()));
@@ -205,12 +206,30 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '', a
   if (portal) {
     const p = express.Router();
     p.use(rateLimit());
-    const cid = (req) => req.get('x-customer-id') || req.body?.customer_id || req.query.customer_id;
+    const cid = (req) => {
+      const access = req.portalAccess;
+      if (access.case_id && req.params.id !== access.case_id) throw new EngineError('Este enlace solo permite acceder a tu cotización.', 403, 'FORBIDDEN');
+      return access.customer_id;
+    };
 
     p.get('/catalog', (req, res) => res.json(portal.catalog()));
-    p.get('/customers', wrap(async (req, res) => res.json({ customers: await portal.listCustomers() })));
-    p.post('/customers', wrap(async (req, res) => res.json(await portal.createCustomer(req.body ?? {}))));
-    p.get('/me', wrap(async (req, res) => res.json(await portal.getCustomerView(cid(req)))));
+    p.get('/customers', (req, res) => res.status(403).json({ error: 'El directorio de empresas está disponible únicamente en la consola del equipo.' }));
+    p.post('/customers', wrap(async (req, res) => {
+      res.set('Cache-Control', 'no-store');
+      const customer = await portal.createCustomer(req.body ?? {});
+      res.json({ ...customer, access_token: await portal.issueAccess(customer.customer_id) });
+    }));
+    p.use(wrap(async (req, res, next) => {
+      res.set('Cache-Control', 'no-store');
+      req.portalAccess = await portal.resolveAccess(req.get('x-portal-access'));
+      const scopedCase = req.portalAccess.case_id;
+      if (scopedCase && req.path !== '/me' && !req.path.startsWith('/quotes/')) {
+        throw new EngineError('Este enlace solo permite acceder a tu cotización.', 403, 'FORBIDDEN');
+      }
+      // La comprobación exacta se repite por ruta: no basta compartir el prefijo del folio.
+      next();
+    }));
+    p.get('/me', wrap(async (req, res) => res.json(await portal.getAccessView(req.portalAccess))));
     p.post('/requests', wrap(async (req, res) => res.json(await portal.submitRequest(cid(req), req.body ?? {}))));
     p.post('/quotes', wrap(async (req, res) => res.json(await portal.requestQuote(cid(req), req.body?.package_id))));
     p.post('/quotes/:id/view', wrap(async (req, res) => res.json(await portal.viewSection(cid(req), req.params.id, req.body?.section))));

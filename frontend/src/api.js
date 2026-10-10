@@ -1,6 +1,7 @@
 // Cliente del API del backend.
 const PASS_KEY = 'nexo-admin-password';
 const CUSTOMER_KEY = 'nexo-portal-customer';
+const ACCESS_KEY = 'nexo-portal-access';
 
 function safeGet(key) {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -19,6 +20,11 @@ export const adminPassword = {
 export const portalCustomer = {
   get: () => safeGet(CUSTOMER_KEY),
   set: (v) => safeSet(CUSTOMER_KEY, v),
+};
+
+export const portalAccess = {
+  get: () => { try { return sessionStorage.getItem(ACCESS_KEY); } catch { return null; } },
+  set: (value) => { try { if (value) sessionStorage.setItem(ACCESS_KEY, value); else sessionStorage.removeItem(ACCESS_KEY); } catch {} },
 };
 
 async function request(method, url, body, { contentType = 'application/json', headers = {} } = {}) {
@@ -71,6 +77,7 @@ export const api = {
   advanceClock: (hours) => request('POST', '/settings/clock/advance', { hours }),
   uploadEvents: (content, source) => request('POST', '/events', { content, source }),
   evaluate: (caseIds) => request('POST', '/evaluate', caseIds ? { case_ids: caseIds } : {}),
+  portalLink: (id) => request('POST', `/cases/${encodeURIComponent(id)}/portal-link`, {}),
   closeCase: (id, data) => request('POST', `/cases/${encodeURIComponent(id)}/close`, data),
   addEvent: (id, event) => request('POST', `/cases/${encodeURIComponent(id)}/events`, event),
   exportJson: () => request('GET', '/export'),
@@ -80,11 +87,15 @@ export const api = {
 };
 
 // API pública del portal del cliente.
-const asCustomer = (id) => ({ headers: id ? { 'x-customer-id': id } : {} });
+const asCustomer = () => ({ headers: portalAccess.get() ? { 'x-portal-access': portalAccess.get() } : {} });
 export const portalApi = {
   catalog: () => request('GET', '/portal/catalog'),
   customers: () => request('GET', '/portal/customers'),
-  createCustomer: (body) => request('POST', '/portal/customers', body),
+  createCustomer: async (body) => {
+    const customer = await request('POST', '/portal/customers', body);
+    portalAccess.set(customer.access_token);
+    return customer;
+  },
   me: (cid) => request('GET', '/portal/me', undefined, asCustomer(cid)),
   submitRequest: (cid, body) => request('POST', '/portal/requests', body, asCustomer(cid)),
   requestQuote: (cid, packageId) => request('POST', '/portal/quotes', { package_id: packageId }, asCustomer(cid)),

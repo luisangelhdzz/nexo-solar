@@ -16,7 +16,8 @@
     "ai:check": "node src/cli/check-ai.js",
     "ai:eval": "node src/cli/eval-assistant.js",
     "ai:diagnose": "node src/cli/diagnose-ai.js",
-    "n8n:check": "node src/cli/check-n8n.js"
+    "n8n:check": "node src/cli/check-n8n.js",
+    "db:presentation": "node src/storage/reset-presentation.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

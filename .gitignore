@@ -5,3 +5,5 @@ frontend/dist/
 .DS_Store
 .vscode/settings.json
 deploy/vultr.env
+
+backups/

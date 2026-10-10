@@ -52,6 +52,8 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
   const [assistantRunId, setAssistantRunId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [clientLink, setClientLink] = useState('');
+  useEffect(() => { setClientLink(''); }, [detail.case_id]);
   useEffect(() => {
     if (state.proposal_pending) api.proposalOptions().then((r) => setOptions(r.packages)).catch((e) => setError(e.message));
   }, [state.proposal_pending]);
@@ -81,6 +83,14 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
           <div><dt>Permiso de contacto</dt><dd>{state.contact_allowed ? 'Autorizado' : 'No autorizado'}{state.contact_not_before ? ` · a partir del ${fmtUtc(state.contact_not_before)}` : ''}</dd></div>
         </dl>
       </details>}
+      <div className="client-access-link">
+        <button type="button" className="btn" disabled={saving || busy} onClick={async () => {
+          setSaving(true); setError('');
+          try { const result = await api.portalLink(detail.case_id); setClientLink(new URL(result.url, window.location.origin).href); }
+          catch (e) { setError(e.message); } finally { setSaving(false); }
+        }}>Generar enlace del cliente</button>
+        {clientLink && <label>Enlace directo · válido por 30 días<input aria-label="Enlace directo del cliente" readOnly value={clientLink} onFocus={(e) => e.target.select()} /><span className="muted small">Compártelo únicamente con este cliente. Permite revisar y responder esta cotización.</span></label>}
+      </div>
       <EmailLog detail={detail} />
       {error && <p className="proposal-error" role="alert">{error}</p>}
       {blocked && <p className="muted">El envío no está disponible ahora. Revisa las restricciones y el siguiente paso recomendado.</p>}

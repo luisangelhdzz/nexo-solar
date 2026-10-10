@@ -5,7 +5,7 @@
 //
 // El portal nunca muestra la recomendación interna al cliente.
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { evaluateRules } from '../domain/rules.js';
 import { activeClientDelays } from '../domain/policy.js';
 import { EngineError } from '../services/engine.js';
@@ -14,7 +14,7 @@ import { isIsoUtc, toIso, toMs } from '../domain/time.js';
 import { PACKAGES, SECTIONS, findPackage } from './catalog.js';
 import { buildInvoice, isValidEmail } from './invoice.js';
 import { sendToN8n } from './n8n.js';
-import { proposalEmail, requestReceivedEmail } from './correos.js';
+import { proposalEmail, requestReceivedEmail, portalLink } from './correos.js';
 import { createNotifier, maskEmail, sendWithRetry } from './notifier.js';
 import { config } from '../config.js';
 
@@ -54,6 +54,25 @@ export function createPortal({
     const c = customerId ? await storage.getCustomer(customerId) : null;
     if (!c) throw new EngineError('Elige tu empresa para continuar.', 401, 'NO_CUSTOMER');
     return c;
+  }
+
+  // El enlace es una credencial aleatoria. En la base solo se guarda su hash.
+  async function issueAccess(customerId, caseId = null) {
+    const token = randomBytes(32).toString('base64url');
+    const key = `portal_access:${createHash('sha256').update(token).digest('hex')}`;
+    await storage.setSettings({ [key]: { customer_id: customerId, case_id: caseId, expires_at: Date.now() + 30 * 86400000 } });
+    return token;
+  }
+
+  async function resolveAccess(token) {
+    const invalid = () => new EngineError('Este enlace no es válido o venció. Pide al equipo un nuevo enlace para tu cotización.', 401, 'PORTAL_ACCESS_REQUIRED');
+    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw invalid();
+    const key = `portal_access:${createHash('sha256').update(token).digest('hex')}`;
+    const access = (await storage.getSettings())[key];
+    if (!access || access.expires_at <= Date.now()) throw invalid();
+    await requireCustomer(access.customer_id);
+    if (access.case_id) await caseOf(access.case_id, access.customer_id);
+    return access;
   }
 
   async function caseOf(caseId, customerId) {
@@ -166,7 +185,7 @@ export function createPortal({
 
   async function queueRequestEmail(caseId, customer, state) {
     const request = state.request ?? {};
-    const payload = requestReceivedEmail({ caseId, customer, request, to: request.email, publicUrl: siteUrl() });
+    const payload = requestReceivedEmail({ caseId, customer, request, to: request.email, publicUrl: siteUrl(), accessToken: await issueAccess(customer.customer_id, caseId) });
     let skip = !request.email ? 'El cliente no dejó correo en su solicitud.' : await emailBlock(caseId, state);
     if (!skip && !ackAllowed(request.email)) skip = `Límite de ${ACK_LIMIT} acuses por hora para este correo (protección contra abusos).`;
     return mailer.queue({ key: payload.id, kind: 'solicitud', caseId, customerId: customer.customer_id, payload, skip });
@@ -183,6 +202,7 @@ export function createPortal({
       amount: state.amount_mxn,
       to: state.request?.email,
       publicUrl: siteUrl(),
+      accessToken: await issueAccess(state.customer_id, caseId),
     });
     const skip = !state.request?.email ? 'El cliente no dejó correo en su solicitud.' : await emailBlock(caseId, state);
     return mailer.queue({ key: payload.id, kind: 'propuesta', caseId, customerId: state.customer_id, payload, skip });
@@ -200,7 +220,7 @@ export function createPortal({
     return result;
   }
 
-  function invoiceFor(caseId, customer, state, email) {
+  async function invoiceFor(caseId, customer, state, email) {
     return buildInvoice({
       caseId,
       customer,
@@ -210,6 +230,7 @@ export function createPortal({
       email,
       issuedAt: state.closed_at,
       publicUrl: siteUrl(),
+      accessToken: await issueAccess(state.customer_id, caseId),
     });
   }
 
@@ -222,7 +243,7 @@ export function createPortal({
     const email = state.request?.email;
     if (!email || !isValidEmail(email)) return null;
     const block = await emailBlock(caseId, state);
-    const invoice = invoiceFor(caseId, customer, state, email);
+    const invoice = await invoiceFor(caseId, customer, state, email);
     const saved = await storage.saveInvoice({
       invoice_number: invoice.invoice_number,
       case_id: caseId,
@@ -257,6 +278,21 @@ export function createPortal({
   }
 
   return {
+    issueAccess,
+    resolveAccess,
+    async createCaseLink(caseId) {
+      const events = await storage.getCaseEvents(caseId);
+      const state = buildCaseState(caseId, events);
+      if (!events.length || !state.customer_id) throw new EngineError('No encontramos esa cotización.', 404, 'NOT_FOUND');
+      await requireCustomer(state.customer_id);
+      return { url: portalLink(caseId, siteUrl(), await issueAccess(state.customer_id, caseId)), expires_in_days: 30 };
+    },
+    async getAccessView(access) {
+      if (!access.case_id) return this.getCustomerView(access.customer_id);
+      const customer = await requireCustomer(access.customer_id);
+      const { events } = await caseOf(access.case_id, access.customer_id);
+      return { customer: { customer_id: customer.customer_id, name: customer.name, contact_name: customer.contact_name }, quotes: [await fullView(access.case_id, events)], now: await liveNow(), access_case_id: access.case_id };
+    },
     catalog() {
       return { packages: PACKAGES, sections: SECTIONS };
     },
@@ -477,7 +513,7 @@ export function createPortal({
       if (previous.filter((i) => i.status === 'sent').length >= 3) {
         throw new EngineError('Ya enviamos este comprobante varias veces. Revisa tu bandeja de spam.', 429, 'TOO_MANY');
       }
-      const invoice = invoiceFor(caseId, customer, state, email);
+      const invoice = await invoiceFor(caseId, customer, state, email);
       const saved = await storage.saveInvoice({
         invoice_number: invoice.invoice_number,
         case_id: caseId,

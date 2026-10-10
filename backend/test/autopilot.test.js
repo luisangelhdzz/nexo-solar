@@ -111,7 +111,7 @@ test('API: la propuesta del asistente pide contraseña y el envío guarda la cor
   });
   try {
     const customer = await (await call('POST', '/portal/customers', { name: 'Taller Prueba', contact_name: 'Luis Pérez' }, null)).json();
-    const asCustomer = { 'content-type': 'application/json', 'x-customer-id': customer.customer_id };
+    const asCustomer = { 'content-type': 'application/json', 'x-portal-access': customer.access_token };
     const q = await (await fetch(`${base}/portal/requests`, { method: 'POST', headers: asCustomer, body: JSON.stringify({ ...REQUEST, contact_name: 'Luis Pérez' }) })).json();
     now += 3600000;
     assert.equal((await call('POST', `/cases/${q.case_id}/proposal`, PROPOSAL)).status, 200);
