@@ -1,5 +1,5 @@
-// Ilustraciones de producto en SVG. No hay fotografías en el proyecto: cada pieza se dibuja
-// con la misma paleta (azul de celda + ámbar solar) para que el catálogo se vea como un solo sistema.
+// Ilustraciones en SVG para los componentes sueltos y las categorías. Los paquetes completos
+// usan fotografías (ver photos.js). Todo se dibuja con la misma paleta (azul de celda + ámbar solar).
 
 const CELL = '#24476b';
 const CELL_DEEP = '#142c45';

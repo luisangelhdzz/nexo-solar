@@ -1,265 +1,498 @@
-import { useEffect, useMemo, useState } from 'react';
-import { CATEGORIES, COMPONENTS, FACTS, PROMISES } from './products.js';
-import { ProductArt, SolarPanelArt, BatteryArt, InverterArt } from './art.jsx';
-import { IconArrow, IconBolt, IconCard, IconDoc, IconHeadset, IconMail, IconPhone, IconPin, IconShield, IconWrench } from './icons.jsx';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { COMPONENTES } from './products.js';
+import { LOGO } from './photos.js';
 import { go, money } from './util.js';
 
-const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+// Tienda de Nexo Solar: mismo diseño que "Quequitos y Materias Primas by Gris"
+// (barra blanca, header con foto y título que se escribe solo, catálogo con filtros,
+// promo con mapa, pasos y footer), con la paleta de una empresa solar.
 
-// Los paquetes del backend y los componentes de la vitrina comparten la misma tarjeta.
-export function buildProducts(catalog) {
-  const packages = (catalog?.packages ?? []).map((p, i) => ({
-    id: p.package_id,
-    package_id: p.package_id,
-    category: 'paquetes',
-    name: p.name,
-    spec: `${p.panels} paneles, ahorro estimado de ${money(p.monthly_saving_mxn)} al mes`,
-    price_mxn: p.price_mxn,
-    badge: i === 1 ? 'Más vendido' : undefined,
-  }));
-  return [...packages, ...COMPONENTS];
+const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+/* ============================================================
+   NAVEGACIÓN
+   Las secciones de la página de inicio tienen su propia ruta (#/productos,
+   #/como-cotizar, #/contacto) para que se puedan compartir y para que
+   "Mis cotizaciones" (#/cotizar) conviva con ellas.
+   ============================================================ */
+export const SECCION_DE_RUTA = {
+  inicio: 'inicio',
+  productos: 'productos',
+  tienda: 'productos',
+  'como-cotizar': 'metodos',
+  contacto: 'contacto',
+  ofertas: 'promo',
+  nosotros: 'promo',
+};
+
+const LINKS = [
+  { key: 'inicio', label: 'Inicio', ruta: '' },
+  { key: 'productos', label: 'Productos', ruta: 'productos' },
+  { key: 'metodos', label: 'Cómo cotizar', ruta: 'como-cotizar' },
+  { key: 'contacto', label: 'Contacto', ruta: 'contacto' },
+  { key: 'cotizar', label: 'Mis cotizaciones', ruta: 'cotizar' },
+];
+
+export function irA(ruta) {
+  const destino = `#/${ruta}`;
+  const actual = window.location.hash || '#/';
+  if (actual !== destino) { go(ruta); return; }
+  // Mismo hash: el navegador no avisa del cambio, así que se baja a mano.
+  const id = SECCION_DE_RUTA[ruta || 'inicio'];
+  if (!id || id === 'inicio') window.scrollTo({ top: 0, behavior: reducirMovimiento() ? 'auto' : 'smooth' });
+  else document.getElementById(id)?.scrollIntoView({ behavior: reducirMovimiento() ? 'auto' : 'smooth' });
 }
 
-function ProductCard({ product, onQuote, busy }) {
-  const isPackage = Boolean(product.package_id);
-  return (
-    <li className="s-product">
-      {product.badge && <span className="s-badge">{product.badge}</span>}
-      <div className="s-product-art"><ProductArt kind={product.category} size={product.category === 'paquetes' || product.category === 'paneles' ? 170 : 110} id={product.id} /></div>
-      <h3>{product.name}</h3>
-      <p className="s-product-spec">{product.spec}</p>
-      <div className="s-product-foot">
-        <span className="s-price">{money(product.price_mxn)}{isPackage && <small> MXN con IVA</small>}</span>
-        <button type="button" className="s-icon-btn" disabled={busy} onClick={() => onQuote(product)} aria-label={`Cotizar ${product.name}`} title="Cotizar">
-          <IconDoc />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-// ---------- Hero: un carrusel con los paquetes reales del catálogo ----------
-function Hero({ catalog, onQuote }) {
-  const slides = catalog?.packages ?? [];
-  const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-
+/* Marca en la barra la sección que se está viendo. La franja de detección va a
+   media pantalla: la sección se marca cuando de verdad es la que se ve. */
+export function useSeccionActiva(activa, deps = []) {
+  const [seccion, setSeccion] = useState('inicio');
   useEffect(() => {
-    if (slides.length < 2 || paused || prefersReducedMotion()) return undefined;
-    const id = setInterval(() => setIndex((i) => (i + 1) % slides.length), 6000);
-    return () => clearInterval(id);
-  }, [slides.length, paused]);
-
-  const slide = slides[index];
-  const modules = index + 1;
-
-  return (
-    <section className="s-hero" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-      <div className="s-hero-copy">
-        <span className="s-eyebrow"><IconBolt width={14} height={14} /> {slide ? 'Paquete recomendado' : 'Energía solar para empresas'}</span>
-        <h1>{slide ? slide.name : 'Energía solar para tu negocio'}</h1>
-        <p>
-          {slide
-            ? `${slide.ideal_for}. ${slide.panels} paneles, inversor e interconexión incluidos.`
-            : 'Instalamos paneles, inversor e interconexión. Pide tu cotización y decide a tu ritmo.'}
-        </p>
-        <div className="s-hero-actions">
-          <button type="button" className="s-btn s-btn-primary" onClick={() => (slide ? onQuote({ package_id: slide.package_id }) : go('cotizar'))}>
-            Cotizar ahora <IconArrow width={18} height={18} />
-          </button>
-          <button type="button" className="s-btn s-btn-ghost" onClick={() => go('tienda/paquetes')}>Ver paquetes</button>
-        </div>
-        <ul className="s-hero-facts">
-          <li><strong>25 años</strong><span>garantía en paneles</span></li>
-          <li><strong>2 a 3 días</strong><span>de instalación</span></li>
-        </ul>
-      </div>
-
-      <div className="s-hero-art" aria-live="polite">
-        <div className="s-hero-disc" aria-hidden="true" />
-        <SolarPanelArt modules={modules} size={520} id="hero" />
-        {slide && (
-          <div className="s-hero-price">
-            <span>Desde</span>
-            <strong>{money(slide.price_mxn)}</strong>
-          </div>
-        )}
-        <div className="s-hero-float" aria-hidden="true"><InverterArt size={92} /></div>
-      </div>
-
-      {slides.length > 1 && (
-        <div className="s-dots" role="tablist" aria-label="Paquetes destacados">
-          {slides.map((p, i) => (
-            <button key={p.package_id} type="button" role="tab" aria-selected={i === index} aria-label={p.name} className={i === index ? 'on' : ''} onClick={() => setIndex(i)} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
+    if (!activa || !('IntersectionObserver' in window)) return undefined;
+    const ids = ['inicio', 'productos', 'metodos', 'contacto'];
+    const obs = new IntersectionObserver((entradas) => {
+      entradas.forEach((e) => { if (e.isIntersecting) setSeccion(e.target.id); });
+    }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) obs.observe(el); });
+    return () => obs.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activa, ...deps]);
+  return seccion;
 }
 
-function CategoryRow({ products }) {
-  const counts = useMemo(() => {
-    const out = {};
-    products.forEach((p) => { out[p.category] = (out[p.category] ?? 0) + 1; });
-    return out;
-  }, [products]);
-  return (
-    <section className="s-section">
-      <div className="s-section-head">
-        <div>
-          <span className="s-kicker">Explora por categoría</span>
-          <h2>Todo para tu sistema solar</h2>
-        </div>
-      </div>
-      <ul className="s-categories">
-        {CATEGORIES.map((c) => (
-          <li key={c.slug}>
-            <button type="button" className="s-category" onClick={() => go(`tienda/${c.slug}`)}>
-              <ProductArt kind={c.slug} size={c.slug === 'paquetes' || c.slug === 'paneles' ? 84 : 56} id={`cat-${c.slug}`} />
-              <strong>{c.label}</strong>
-              <span>{counts[c.slug] ? `${counts[c.slug]} ${counts[c.slug] === 1 ? 'producto' : 'productos'}` : c.note}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
+export function MenuBar({ activo }) {
+  const [abierto, setAbierto] = useState(false);
+  const [fijo, setFijo] = useState(false);
 
-// El diseño de referencia lleva aquí una cuenta regresiva. Este portal promete "sin prisa",
-// así que en su lugar van los datos firmes de la oferta, con la misma forma de mosaico.
-function OfferBanner() {
+  // Al bajar, la barra gana un poco de sombra y se encoge.
+  useEffect(() => {
+    const onScroll = () => setFijo(window.scrollY > 30);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // El menú del celular se cierra al pasar a escritorio y con Escape.
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth > 870) setAbierto(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setAbierto(false); };
+    window.addEventListener('resize', onResize);
+    document.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('resize', onResize); document.removeEventListener('keydown', onKey); };
+  }, []);
+
+  const navegar = (e, ruta) => { e.preventDefault(); setAbierto(false); irA(ruta); };
+
   return (
-    <section className="s-offer" id="ofertas">
-      <div className="s-offer-copy">
-        <span className="s-tag"><IconBolt width={13} height={13} /> Cotiza con calma</span>
-        <h2>Tu sistema solar, instalado y con garantía</h2>
-        <ul className="s-facts">
-          {FACTS.map((f) => (
-            <li key={f.label}>
-              <strong>{f.value}</strong>
-              <em>{f.unit}</em>
-              <span>{f.label}</span>
+    <div className={`menu${fijo ? ' menu--fijo' : ''}`} id="barraMenu">
+      <a href="#/" className="logo" aria-label="Nexo Solar, inicio" onClick={(e) => navegar(e, '')}>
+        <img src={LOGO} alt="Nexo Solar" width="54" height="54" />
+      </a>
+
+      <button
+        type="button"
+        className={`menu-label${abierto ? ' abierta' : ''}`}
+        aria-label={abierto ? 'Cerrar menú' : 'Abrir menú'}
+        aria-expanded={abierto}
+        aria-controls="navPrincipal"
+        onClick={() => setAbierto((v) => !v)}
+      >
+        <span /><span /><span />
+      </button>
+
+      <nav className={`navbar${abierto ? ' abierta' : ''}`} id="navPrincipal" aria-label="Principal">
+        <ul>
+          {LINKS.map((l) => (
+            <li key={l.key}>
+              <a href={`#/${l.ruta}`} className={activo === l.key ? 'activo' : ''} aria-current={activo === l.key ? 'true' : undefined} onClick={(e) => navegar(e, l.ruta)}>
+                {l.label}
+              </a>
             </li>
           ))}
         </ul>
-        <button type="button" className="s-btn s-btn-dark" onClick={() => go('cotizar')}>Pedir mi cotización <IconArrow width={18} height={18} /></button>
-      </div>
-      <div className="s-offer-art" aria-hidden="true">
-        <div className="s-offer-disc" />
-        <BatteryArt size={190} />
-      </div>
-    </section>
+      </nav>
+    </div>
   );
 }
 
-function BestSellers({ products, onQuote, busy }) {
-  const featured = products.filter((p) => p.package_id || p.badge).slice(0, 8);
+/* ============================================================
+   TÍTULO DEL HEADER: MÁQUINA DE ESCRIBIR
+   Cada palabra va en un .word que no se parte, y cada letra en un .letter con su
+   tinte. Las letras se ocultan con visibility (no display) para que el bloque
+   conserve su tamaño mientras se escribe y la página no dé saltos.
+   ============================================================ */
+const TINTES = ['var(--titulo-tinte-1)', 'var(--titulo-tinte-2)', 'var(--titulo-tinte-3)', 'var(--titulo-tinte-4)'];
+const ESCRITURA = {
+  velocidad: 55, // ms por letra al escribir
+  borrado: 28, // ms por letra al borrar
+  esperaLleno: 4000, // ms con el texto completo antes de borrar
+  esperaVacio: 550, // ms en blanco antes de volver a escribir
+  inicio: 350, // respiro antes de arrancar
+};
+
+function partirEnLetras(lineas) {
+  let i = 0;
+  const partes = lineas.map((linea) => linea.split(/(\s+)/).filter(Boolean).map((trozo) => (
+    /^\s+$/.test(trozo) ? { espacio: true } : { letras: [...trozo].map((ch) => ({ ch, i: i++ })) }
+  )));
+  return { partes, total: i };
+}
+
+function TituloEscrito({ lineas }) {
+  const { partes, total } = useMemo(() => partirEnLetras(lineas), [lineas]);
+  const [quieto] = useState(reducirMovimiento);
+  const [vistas, setVistas] = useState(quieto ? total : 0);
+
+  useEffect(() => {
+    if (quieto) return undefined;
+    let n = 0;
+    let borrando = false;
+    let reloj;
+    const paso = () => {
+      if (!borrando) {
+        if (n < total) { n += 1; setVistas(n); reloj = setTimeout(paso, ESCRITURA.velocidad); return; }
+        borrando = true; reloj = setTimeout(paso, ESCRITURA.esperaLleno); return;
+      }
+      if (n > 0) { n -= 1; setVistas(n); reloj = setTimeout(paso, ESCRITURA.borrado); return; }
+      borrando = false; reloj = setTimeout(paso, ESCRITURA.esperaVacio);
+    };
+    reloj = setTimeout(paso, ESCRITURA.inicio);
+    return () => clearTimeout(reloj);
+  }, [quieto, total]);
+
+  const cursor = (i) => {
+    if (quieto) return '';
+    if (vistas === 0) return i === 0 ? ' cursor-antes' : '';
+    return i === vistas - 1 ? ' cursor' : '';
+  };
+
   return (
-    <section className="s-section">
-      <div className="s-section-head">
-        <div>
-          <span className="s-kicker">Nuestra colección</span>
-          <h2>Lo más pedido</h2>
+    <h1 className={quieto ? '' : 'escribiendo-modo'} aria-label={lineas.join(' ')}>
+      {partes.map((linea, li) => (
+        <Fragment key={li}>
+          {li > 0 && <br />}
+          {linea.map((p, pi) => (p.espacio ? ' ' : (
+            <span className="word" key={pi} aria-hidden="true">
+              {p.letras.map(({ ch, i }) => (
+                <span key={i} className={`letter${i < vistas ? ' visible' : ''}${cursor(i)}`} style={{ '--tinte': TINTES[i % TINTES.length] }}>{ch}</span>
+              ))}
+            </span>
+          )))}
+        </Fragment>
+      ))}
+    </h1>
+  );
+}
+
+/* ============================================================
+   "PRODUCTOS": las letras caen y se quedan colgando, meciéndose en ola.
+   ============================================================ */
+function TituloColgante({ texto, paso = 0.065 }) {
+  const [animar, setAnimar] = useState(false);
+  useEffect(() => {
+    // Doble requestAnimationFrame: las letras se pintan primero y se animan en el
+    // cuadro siguiente; si se hace todo junto se ve un tirón.
+    let r2;
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setAnimar(true)); });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+  }, []);
+  let i = 0;
+  const letras = [...texto.replace(/\s+/g, '')].length;
+  return (
+    <h2 className={animar ? 'animar' : ''} style={{ '--recorrido': `${(letras * paso + 0.6).toFixed(2)}s` }} aria-label={texto}>
+      {texto.split(/(\s+)/).filter(Boolean).map((palabra, wi) => (/^\s+$/.test(palabra) ? ' ' : (
+        <span className="word" key={wi} aria-hidden="true">
+          {[...palabra].map((ch) => {
+            const k = i++;
+            return <span key={k} className="letter" style={{ '--letter-delay': `${(k * paso).toFixed(3)}s` }}>{ch}</span>;
+          })}
+        </span>
+      )))}
+    </h2>
+  );
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+const TITULO = ['Nexo Solar', 'energía para tu negocio'];
+
+function Encabezado() {
+  return (
+    <header className="header" id="inicio">
+      <div className="header-content">
+        <div className="header-texto">
+          <TituloEscrito lineas={TITULO} />
         </div>
-        <button type="button" className="s-btn s-btn-outline" onClick={() => go('tienda')}>Ver todos los productos <IconArrow width={16} height={16} /></button>
       </div>
-      <ul className="s-grid">
-        {featured.map((p) => <ProductCard key={p.id} product={p} onQuote={onQuote} busy={busy} />)}
-      </ul>
-    </section>
+    </header>
   );
 }
 
-const PROMISE_ICON = { install: IconWrench, warranty: IconShield, financing: IconCard, support: IconHeadset };
+/* ============================================================
+   PRODUCTOS
+   ============================================================ */
+const VISIBLES = 9; // cuántos se muestran antes de "Ver más"
 
-function Promises() {
+// Franja de color de cada tarjeta, como en el panel de referencia: cada producto la suya.
+// Las primeras cuatro son las de la imagen (azul, degradado, rojo y celeste); el celeste
+// no va junto al azul para que en cada fila se vean distintas.
+export const ACENTOS = [
+  '#198ef5',
+  'linear-gradient(90deg, #fdc468, #df4996)',
+  '#c4032b',
+  '#1da1f2',
+  '#1db489',
+  'linear-gradient(90deg, #f7c948, #f08a24)',
+  '#8b5cf6',
+  'linear-gradient(90deg, #22d3ee, #6366f1)',
+  'linear-gradient(90deg, #a3e635, #14b8a6)',
+];
+
+// Quita acentos y mayúsculas: "inversor hibrido" encuentra "Inversor híbrido".
+const normalizar = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+export function armarCatalogo() {
+  return COMPONENTES.map((producto, i) => ({ ...producto, acento: ACENTOS[i % ACENTOS.length] }));
+}
+
+const IconoCotizar = () => (
+  <svg className="icono-mini" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+    <path d="M14 3v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  </svg>
+);
+
+function ProductoCard({ p, onQuote, busy, cotizacion }) {
   return (
-    <section className="s-promises">
-      {PROMISES.map((p) => {
-        const Icon = PROMISE_ICON[p.key];
-        return (
-          <div key={p.key} className="s-promise">
-            <span className="s-promise-icon"><Icon /></span>
-            <div><strong>{p.title}</strong><span>{p.note}</span></div>
+    <article className={`producto-card${cotizacion ? ' producto-card--en-carrito' : ''}`} style={{ '--acento': p.acento }}>
+      <div className="producto-media">
+        {p.foto
+          ? <img src={p.foto} alt={`${p.nombre} (imagen ilustrativa)`} loading="lazy" style={p.encuadre ? { objectPosition: p.encuadre } : undefined} />
+          : <div className="producto-img" aria-hidden="true" />}
+        {p.insignia && <span className="producto-insignia">{p.insignia}</span>}
+        <button type="button" className="pastilla" disabled={busy} onClick={() => onQuote(p, cotizacion)}>
+          <IconoCotizar /><span>{cotizacion ? 'Ver mi cotización' : 'Cotizar'}</span>
+        </button>
+      </div>
+      <div className="producto-info">
+        <span className="producto-categoria">{p.etiqueta}</span>
+        <h3>{p.nombre}</h3>
+        <p className="producto-detalle">{p.detalle}</p>
+        <p className="producto-precio">{money(p.precio)}</p>
+        <span className="producto-unidad">{p.unidad}</span>
+        {p.beneficio && <span className="producto-dato"><span aria-hidden="true">▲</span>{p.beneficio}</span>}
+      </div>
+    </article>
+  );
+}
+
+function Productos({ onQuote, busy, cotizados }) {
+  const productos = useMemo(() => armarCatalogo(), []);
+  const [categoria, setCategoria] = useState('todos');
+  const [texto, setTexto] = useState('');
+  const [verTodo, setVerTodo] = useState(false);
+
+  // Las pastillas salen solas de las categorías del catálogo, en su orden.
+  const categorias = useMemo(() => {
+    const cuenta = new Map();
+    productos.forEach((p) => cuenta.set(p.categoria, (cuenta.get(p.categoria) ?? 0) + 1));
+    return [...cuenta.entries()];
+  }, [productos]);
+
+  const busqueda = normalizar(texto);
+  const lista = productos.filter((p) => {
+    if (categoria !== 'todos' && p.categoria !== categoria) return false;
+    if (!busqueda) return true;
+    const heno = normalizar(`${p.nombre} ${p.categoria} ${p.detalle}`);
+    return busqueda.split(/\s+/).every((palabra) => heno.includes(palabra));
+  });
+  const filtroActivo = categoria !== 'todos' || busqueda !== '';
+  // Con un filtro activo se muestra todo lo que coincide: cortar una búsqueda confunde.
+  const paginar = !filtroActivo && !verTodo && lista.length > VISIBLES;
+  const visibles = paginar ? lista.slice(0, VISIBLES) : lista;
+
+  const elegir = (valor) => { setCategoria(valor); setVerTodo(false); };
+  const limpiar = () => { setCategoria('todos'); setTexto(''); setVerTodo(false); };
+
+  return (
+    <section className="productos" id="productos">
+      <div className="productos-content container">
+        <div className="productos-encabezado">
+          <span className="eyebrow">Nuestro catálogo</span>
+          <TituloColgante texto="Productos" />
+          <p className="txt-p">Equipos y componentes solares individuales, disponibles por separado.</p>
+        </div>
+
+        <div className="filtros">
+          {categorias.length > 1 && (
+            <div className="filtros-chips" role="group" aria-label="Filtrar por categoría">
+              {[['todos', 'Todos', productos.length], ...categorias.map(([c, n]) => [c, c, n])].map(([valor, etiqueta, n]) => (
+                <button key={valor} type="button" className={`chip-cat${categoria === valor ? ' activo' : ''}`} aria-pressed={categoria === valor} onClick={() => elegir(valor)}>
+                  {etiqueta}<span className="chip-num">{n}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="buscador">
+            <svg className="buscador-icono" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M16.5 16.5 21 21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <input
+              type="search"
+              value={texto}
+              onChange={(e) => { setTexto(e.target.value); setVerTodo(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); if (e.key === 'Escape') setTexto(''); }}
+              placeholder="Buscar producto…"
+              autoComplete="off"
+              aria-label="Buscar producto"
+            />
+            {texto && <button type="button" className="buscador-limpiar" aria-label="Limpiar búsqueda" onClick={() => setTexto('')}>×</button>}
           </div>
-        );
-      })}
+        </div>
+
+        <p className="conteo" aria-live="polite">{filtroActivo && lista.length ? `${lista.length} ${lista.length === 1 ? 'producto' : 'productos'}` : ''}</p>
+
+        {lista.length > 0 && (
+          <div className="productos-group">
+            {visibles.map((p) => <ProductoCard key={p.id} p={p} onQuote={onQuote} busy={busy} cotizacion={p.package_id ? cotizados?.[p.package_id] : null} />)}
+          </div>
+        )}
+
+        {!lista.length && (
+          <div className="sin-resultados">
+            <span aria-hidden="true">🔍</span>
+            <p>{busqueda ? `No encontramos nada con “${texto.trim()}”.` : 'No hay productos en esta categoría.'}</p>
+            <button type="button" className="btn-1 btn-1--claro" onClick={limpiar}>Ver todo el catálogo</button>
+          </div>
+        )}
+
+        {paginar && <button type="button" id="ver-mas" className="btn-1" onClick={() => setVerTodo(true)}>Ver más</button>}
+
+        <p className="productos-nota">Cada producto se muestra por separado. Consulta disponibilidad y cotización individual.</p>
+      </div>
     </section>
   );
 }
 
-export function HomePage({ catalog, onQuote, busy }) {
-  const products = useMemo(() => buildProducts(catalog), [catalog]);
+/* ============================================================
+   PROMO + MAPA
+   ============================================================ */
+const CIUDAD = 'Instituto Tecnológico de Saltillo, Saltillo, Coahuila, México';
+
+function Promo() {
+  const consulta = encodeURIComponent(CIUDAD);
+  return (
+    <section className="promo" id="promo">
+      <div className="promo-inner container">
+        <div className="promo-texto">
+          <span className="eyebrow">Sin prisa, sin presión</span>
+          <h2>Energía solar a tu ritmo</h2>
+          <span className="divisor divisor--izq" />
+          <p>Diseñamos, instalamos y conectamos tu sistema en 2 a 3 días. Tu cotización queda guardada: revísala con calma y decide cuando estés listo.</p>
+          <button type="button" className="btn-1 btn-1--claro" onClick={() => go('cotizar')}>Pedir mi cotización</button>
+        </div>
+        <div className="promo-mapa">
+          <div className="mapa-marco">
+            <iframe
+              title="Ubicación de Nexo Solar"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              src={`https://www.google.com/maps?q=${consulta}&z=12&output=embed`}
+              allowFullScreen
+            />
+          </div>
+          <div className="mapa-pie">
+            <span className="mapa-direccion">{CIUDAD}</span>
+            <a className="mapa-link" href={`https://www.google.com/maps/dir/?api=1&destination=${consulta}`} target="_blank" rel="noopener noreferrer">Cómo llegar</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   CÓMO COTIZAR
+   ============================================================ */
+const PASOS = [
+  { n: '01', acento: '#198ef5', titulo: 'Elige tus productos', texto: 'Selecciona los equipos y componentes individuales que necesitas y solicita información sobre disponibilidad y cotización.' },
+  { n: '02', acento: 'linear-gradient(90deg, #fdc468, #df4996)', titulo: 'Revísala con calma', texto: 'Abre cada sección de la propuesta, escríbenos tus dudas y dinos desde cuándo prefieres que te contactemos.' },
+  { n: '03', acento: '#1db489', titulo: 'Decide y recibe tu comprobante', texto: 'Cuando estés listo, acéptala y te enviamos el comprobante a tu correo. No se cobra nada en línea.' },
+];
+
+function Metodos() {
+  return (
+    <section className="metodos" id="metodos">
+      <div className="container">
+        <span className="eyebrow">Fácil y directo</span>
+        <h2>Cómo cotizar tus productos</h2>
+        <span className="divisor" />
+        <div className="metodos-content">
+          {PASOS.map((p) => (
+            <div className="metodo-card" key={p.n} style={{ '--acento': p.acento }}>
+              <span className="metodo-num" aria-hidden="true">{p.n}</span>
+              <h3>{p.titulo}</h3>
+              <p>{p.texto}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   FOOTER Y BOTÓN FLOTANTE
+   ============================================================ */
+export function Pie() {
+  const consulta = encodeURIComponent(CIUDAD);
+  return (
+    <footer className="footer" id="contacto">
+      <div className="footer-content container">
+        <div className="footer-col">
+          <h3 className="footer-marca">Nexo Solar</h3>
+          <p className="footer-desc">Sistemas solares instalados para comercios, negocios e industria.</p>
+        </div>
+        <div className="footer-col">
+          <h3>México</h3>
+          <a href={`https://www.google.com/maps?q=${consulta}`} target="_blank" rel="noopener noreferrer">{CIUDAD}</a>
+          <a href="#/cotizar" onClick={(e) => { e.preventDefault(); irA('cotizar'); }}>Escríbenos desde tu cotización</a>
+        </div>
+        <div className="footer-col">
+          <h3>Tu cuenta</h3>
+          <a href="#/cotizar" onClick={(e) => { e.preventDefault(); irA('cotizar'); }}>Pedir cotización</a>
+          <a href="#/cotizar" onClick={(e) => { e.preventDefault(); irA('cotizar'); }}>Mis cotizaciones</a>
+        </div>
+      </div>
+      <p className="footer-copy">© {new Date().getFullYear()} Nexo Solar. Sitio de demostración del hackatón ByeCode: empresa ficticia, sin cobros reales.</p>
+    </footer>
+  );
+}
+
+export function BotonCotizaciones({ cantidad }) {
+  return (
+    <button type="button" className="boton-carrito" aria-label={`Mis cotizaciones${cantidad ? `, ${cantidad}` : ''}`} title="Mis cotizaciones" onClick={() => irA('cotizar')}>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 3h7l5 5v13H7z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M14 3v5h5M10 13h6M10 17h6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span className={`carrito-contador${cantidad > 0 ? ' visible' : ''}`}>{cantidad}</span>
+    </button>
+  );
+}
+
+/* ============================================================
+   PÁGINA DE INICIO
+   ============================================================ */
+export function HomePage({ catalog, onQuote, busy, cotizados }) {
   return (
     <>
-      <Hero catalog={catalog} onQuote={onQuote} />
-      <div className="s-container">
-        <CategoryRow products={products} />
-        <OfferBanner />
-        <BestSellers products={products} onQuote={onQuote} busy={busy} />
-        <Promises />
-      </div>
+      <Encabezado />
+      <Productos onQuote={onQuote} busy={busy} cotizados={cotizados} />
+      <Promo />
+      <Metodos />
     </>
-  );
-}
-
-// ---------- Tienda: todas las categorías, con filtro y búsqueda ----------
-export function ShopPage({ catalog, category, query, onQuote, busy }) {
-  const products = useMemo(() => buildProducts(catalog), [catalog]);
-  const q = query.trim().toLowerCase();
-  const visible = products.filter((p) => (!category || p.category === category) && (!q || `${p.name} ${p.spec}`.toLowerCase().includes(q)));
-  const current = CATEGORIES.find((c) => c.slug === category);
-  return (
-    <div className="s-container s-page">
-      <div className="s-section-head">
-        <div>
-          <span className="s-kicker">Tienda</span>
-          <h1 className="s-h1">{current ? current.label : 'Todos los productos'}</h1>
-          {q && <p className="s-muted">Resultados para “{query}”</p>}
-        </div>
-      </div>
-      <div className="s-chips" role="tablist" aria-label="Categorías">
-        <button type="button" className={!category ? 'on' : ''} onClick={() => go('tienda')}>Todo</button>
-        {CATEGORIES.map((c) => (
-          <button key={c.slug} type="button" className={category === c.slug ? 'on' : ''} onClick={() => go(`tienda/${c.slug}`)}>{c.label}</button>
-        ))}
-      </div>
-      {visible.length ? (
-        <ul className="s-grid">{visible.map((p) => <ProductCard key={p.id} product={p} onQuote={onQuote} busy={busy} />)}</ul>
-      ) : (
-        <p className="s-empty">No encontramos productos con esa búsqueda. Prueba con otra palabra o pide tu cotización y un asesor te ayuda.</p>
-      )}
-      <p className="s-muted s-note">Los paquetes completos se cotizan y compran aquí mismo. Los componentes sueltos se incluyen dentro de tu paquete; si necesitas uno por separado, cuéntanoslo al cotizar.</p>
-    </div>
-  );
-}
-
-export function AboutPage() {
-  return (
-    <div className="s-container s-page s-prose">
-      <span className="s-kicker">Nosotros</span>
-      <h1 className="s-h1">Energía solar para empresas, sin vueltas</h1>
-      <p>Nexo Solar diseña, instala y da seguimiento a sistemas fotovoltaicos para comercios, negocios y plantas industriales. Cada paquete incluye paneles, estructura, inversor y el trámite de interconexión.</p>
-      <p>Creemos que una decisión de este tamaño se toma con calma: tu cotización queda guardada, puedes revisar cada sección de la propuesta, escribirnos tus dudas y elegir cuándo quieres que te contactemos.</p>
-      <Promises />
-    </div>
-  );
-}
-
-export function ContactPage() {
-  return (
-    <div className="s-container s-page s-prose">
-      <span className="s-kicker">Contacto</span>
-      <h1 className="s-h1">Hablemos de tu proyecto</h1>
-      <p>La forma más rápida es pedir tu cotización: queda registrada y puedes escribirnos tus dudas desde ahí.</p>
-      <button type="button" className="s-btn s-btn-primary" onClick={() => go('cotizar')}>Pedir mi cotización <IconArrow width={18} height={18} /></button>
-      <ul className="s-contact">
-        <li><IconPhone /><span>Atención por teléfono: dato de demostración</span></li>
-        <li><IconMail /><span>Correo de ventas: dato de demostración</span></li>
-        <li><IconPin /><span>Monterrey, Nuevo León</span></li>
-      </ul>
-    </div>
   );
 }

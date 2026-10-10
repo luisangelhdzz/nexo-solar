@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { portalApi, portalCustomer } from '../api.js';
-import { AboutPage, ContactPage, HomePage, ShopPage } from './Storefront.jsx';
-import { CATEGORIES } from './products.js';
-import { IconChevron, IconClose, IconDoc, IconMenu, IconSearch, IconTruck, IconUser } from './icons.jsx';
+import { BotonCotizaciones, HomePage, MenuBar, Pie, SECCION_DE_RUTA, useSeccionActiva } from './Storefront.jsx';
 import { dateMx, dayMx, go, money, parseHash } from './util.js';
+import { packagePhoto } from './photos.js';
 import './portal.css';
 import './storefront.css';
 
@@ -34,96 +33,6 @@ const STATUS = {
   cancelled: { label: 'Cancelada', cls: 'st-off' },
 };
 const statusOf = (q) => (q.status === 'closed' ? STATUS[q.closed_status] : STATUS.open);
-
-const NAV = [
-  { page: 'inicio', label: 'Inicio', path: '' },
-  { page: 'tienda', label: 'Tienda', path: 'tienda' },
-  { page: 'ofertas', label: 'Ofertas', path: 'ofertas' },
-  { page: 'nosotros', label: 'Nosotros', path: 'nosotros' },
-  { page: 'contacto', label: 'Contacto', path: 'contacto' },
-];
-
-function Header({ route, customer, quoteCount, onSwitch }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [catsOpen, setCatsOpen] = useState(false);
-  const [search, setSearch] = useState(route.page === 'tienda' ? route.q : '');
-  const navRef = useRef(null);
-  const activePage = route.page === 'cotizacion' ? 'cotizar' : route.page;
-
-  // Cierra los menús al navegar, con Escape o al hacer clic fuera.
-  useEffect(() => { setMenuOpen(false); setCatsOpen(false); }, [route.page, route.arg]);
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') { setMenuOpen(false); setCatsOpen(false); } };
-    const onClick = (e) => { if (navRef.current && !navRef.current.contains(e.target)) setCatsOpen(false); };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('click', onClick);
-    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('click', onClick); };
-  }, []);
-
-  const submitSearch = (e) => {
-    e.preventDefault();
-    const q = search.trim();
-    go(q ? `tienda?q=${encodeURIComponent(q)}` : 'tienda');
-  };
-
-  return (
-    <>
-      <div className="s-announce"><IconTruck width={16} height={16} /> Instalación e interconexión incluidas en todos los paquetes</div>
-      <header className="s-header-wrap">
-        <div className="s-header">
-          <button type="button" className="s-brand" onClick={() => go('')} aria-label="Nexo Solar, inicio">
-            <span className="p-sun" aria-hidden="true" />
-            <span>Nexo Solar</span>
-          </button>
-
-          <nav className={`s-nav ${menuOpen ? 'open' : ''}`} ref={navRef} aria-label="Principal">
-            {NAV.slice(0, 2).map((n) => (
-              <a key={n.page} href={`#/${n.path}`} className={activePage === n.page ? 'on' : ''}>{n.label}</a>
-            ))}
-            <div className="s-dropdown">
-              <button type="button" className="s-nav-btn" aria-expanded={catsOpen} onClick={() => setCatsOpen((v) => !v)}>
-                Categorías <IconChevron width={14} height={14} />
-              </button>
-              {catsOpen && (
-                <ul className="s-dropdown-menu">
-                  {CATEGORIES.map((c) => (
-                    <li key={c.slug}><a href={`#/tienda/${c.slug}`}>{c.label}</a></li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {NAV.slice(2).map((n) => (
-              <a key={n.page} href={`#/${n.path}`} className={activePage === n.page ? 'on' : ''}>{n.label}</a>
-            ))}
-            <a href="#/cotizar" className={`s-nav-quote ${activePage === 'cotizar' ? 'on' : ''}`}>Cotizar</a>
-          </nav>
-
-          <form className="s-search" role="search" onSubmit={submitSearch}>
-            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar productos…" aria-label="Buscar productos" />
-            <button type="submit" aria-label="Buscar"><IconSearch width={18} height={18} /></button>
-          </form>
-
-          <div className="s-actions">
-            <a href="#/cotizar" className="s-action" aria-label={`Mis cotizaciones${quoteCount ? `, ${quoteCount}` : ''}`} title="Mis cotizaciones">
-              <IconDoc />
-              {quoteCount > 0 && <span className="s-count">{quoteCount}</span>}
-            </a>
-            {customer ? (
-              <button type="button" className="s-action s-account" onClick={onSwitch} title="Cambiar de empresa">
-                <IconUser /><span>{customer.name}</span>
-              </button>
-            ) : (
-              <a href="#/cotizar" className="s-action" aria-label="Entrar con mi empresa" title="Entrar con mi empresa"><IconUser /></a>
-            )}
-            <button type="button" className="s-action s-burger" aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
-              {menuOpen ? <IconClose /> : <IconMenu />}
-            </button>
-          </div>
-        </div>
-      </header>
-    </>
-  );
-}
 
 function PickCompany({ onPicked, onError }) {
   const [list, setList] = useState(null);
@@ -185,13 +94,13 @@ function PickCompany({ onPicked, onError }) {
   );
 }
 
-function QuoteHome({ me, catalog, onOpen, onRequest, busy }) {
-  const [showCatalog, setShowCatalog] = useState(!me.quotes.length);
+function QuoteHome({ me, onOpen, onSwitch }) {
   return (
     <main className="p-main">
       <section className="p-hero p-hero-small">
         <h1>Hola{me.customer.contact_name ? `, ${me.customer.contact_name.split(' ')[0]}` : ''}</h1>
         <p>{me.customer.name}</p>
+        <button type="button" className="p-link p-link-light" onClick={onSwitch}>No soy yo, cambiar de empresa</button>
       </section>
 
       {me.quotes.length > 0 && (
@@ -201,11 +110,14 @@ function QuoteHome({ me, catalog, onOpen, onRequest, busy }) {
             {me.quotes.map((q) => (
               <li key={q.case_id}>
                 <button type="button" className="p-quote" onClick={() => onOpen(q.case_id)}>
-                  <span className="p-quote-top">
-                    <strong>{q.package?.name ?? 'Propuesta'}</strong>
-                    <span className={`p-status ${statusOf(q).cls}`}>{statusOf(q).label}</span>
+                  {packagePhoto(q.package?.package_id) ? <img className="p-thumb" src={packagePhoto(q.package.package_id)} alt="" loading="lazy" /> : <span className="p-thumb" aria-hidden="true" />}
+                  <span className="p-quote-text">
+                    <span className="p-quote-top">
+                      <strong>{q.package?.name ?? 'Propuesta'}</strong>
+                      <span className={`p-status ${statusOf(q).cls}`}>{statusOf(q).label}</span>
+                    </span>
+                    <span className="p-muted">{q.case_id}, {money(q.amount_mxn)} MXN, {dateMx(q.opened_at)}</span>
                   </span>
-                  <span className="p-muted">{q.case_id}, {money(q.amount_mxn)} MXN, {dateMx(q.opened_at)}</span>
                 </button>
               </li>
             ))}
@@ -214,28 +126,9 @@ function QuoteHome({ me, catalog, onOpen, onRequest, busy }) {
       )}
 
       <section className="p-card">
-        <div className="p-card-head">
-          <h2>Pedir una cotización</h2>
-          {me.quotes.length > 0 && (
-            <button type="button" className="p-link" onClick={() => setShowCatalog((v) => !v)}>{showCatalog ? 'Ocultar' : 'Ver paquetes'}</button>
-          )}
-        </div>
-        {showCatalog && (
-          <ul className="p-packages">
-            {catalog?.packages.map((p) => (
-              <li key={p.package_id} className="p-package">
-                <div className="p-package-kw">{p.kw}<span>kW</span></div>
-                <div className="p-package-body">
-                  <strong>{p.name}</strong>
-                  <span className="p-muted">{p.ideal_for}</span>
-                  <span>{p.panels} paneles, ahorro estimado de {money(p.monthly_saving_mxn)} al mes</span>
-                  <span className="p-price">{money(p.price_mxn)} MXN</span>
-                </div>
-                <button type="button" className="p-btn p-btn-sun" disabled={busy} onClick={() => onRequest(p.package_id)}>Solicitar</button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <h2>Equipos y componentes individuales</h2>
+        <p className="p-muted">Consulta el catálogo para ver los productos disponibles por separado.</p>
+        <button type="button" className="p-btn p-btn-sun" onClick={() => go('productos')}>Ver productos</button>
       </section>
     </main>
   );
@@ -276,12 +169,15 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
     <main className="p-main">
       <button type="button" className="p-link p-back" onClick={onBack}>Volver a mis cotizaciones</button>
 
-      <section className="p-quote-hero">
-        <span className={`p-status ${st.cls}`}>{st.label}</span>
-        <h1>{pkg?.name ?? 'Propuesta'}</h1>
-        <p className="p-price-big">{money(quote.amount_mxn)} <span>MXN con IVA</span></p>
-        {pkg && <p>{pkg.panels} paneles, {pkg.kw} kW. Ahorro estimado de {money(pkg.monthly_saving_mxn)} al mes.</p>}
-        <p className="p-muted-light">Cotización {quote.case_id}, {dateMx(quote.opened_at)}</p>
+      <section className={`p-quote-hero ${packagePhoto(pkg?.package_id) ? 'has-photo' : ''}`}>
+        <div className="p-quote-hero-text">
+          <span className={`p-status ${st.cls}`}>{st.label}</span>
+          <h1>{pkg?.name ?? 'Propuesta'}</h1>
+          <p className="p-price-big">{money(quote.amount_mxn)} <span>MXN con IVA</span></p>
+          {pkg && <p>{pkg.panels} paneles, {pkg.kw} kW. Ahorro estimado de {money(pkg.monthly_saving_mxn)} al mes.</p>}
+          <p className="p-muted-light">Cotización {quote.case_id}, {dateMx(quote.opened_at)}</p>
+        </div>
+        {packagePhoto(pkg?.package_id) && <img className="p-quote-photo" src={packagePhoto(pkg.package_id)} alt={`Equipo del paquete ${pkg.name} (imagen ilustrativa)`} />}
       </section>
 
       <section className="p-card">
@@ -484,11 +380,18 @@ export default function PortalApp() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // Cada página empieza arriba, salvo "Ofertas", que baja a su sección dentro del inicio.
+  const inQuoteSection = route.page === 'cotizar' || route.page === 'cotizacion';
+
+  // Las rutas de las secciones del inicio (#/productos, #/como-cotizar, #/contacto) bajan
+  // a su lugar; "Mis cotizaciones" y el inicio empiezan arriba.
   useEffect(() => {
-    if (route.page === 'ofertas') document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' });
-    else window.scrollTo(0, 0);
-  }, [route.page, route.arg, route.q, catalog]);
+    const id = inQuoteSection ? null : SECCION_DE_RUTA[route.page];
+    if (!id || id === 'inicio') { window.scrollTo(0, 0); return; }
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById(id)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+  }, [route.page, route.arg, inQuoteSection, catalog]);
+
+  const seccion = useSeccionActiva(!inQuoteSection, [catalog]);
 
   const pick = (cid) => {
     portalCustomer.set(cid);
@@ -516,11 +419,23 @@ export default function PortalApp() {
     }
   };
 
-  // Desde la tienda: un paquete se cotiza directo si ya hay empresa; si no, se pasa por "Cotizar".
-  const quoteFromShop = (product) => {
-    if (product.package_id && customerId && me) requestQuote(product.package_id);
+  // Desde la tienda: si ya hay una cotización abierta de ese paquete se abre; si hay empresa,
+  // el paquete se cotiza directo; si no, se pasa por "Mis cotizaciones" para elegir empresa.
+  const quoteFromShop = (product, existing) => {
+    if (existing) openQuote(existing.case_id);
+    else if (product.package_id && customerId && me) requestQuote(product.package_id);
     else go('cotizar');
   };
+
+  // Paquetes que el cliente ya tiene en una cotización abierta: su tarjeta se marca.
+  const cotizados = useMemo(() => {
+    const out = {};
+    (me?.quotes ?? []).forEach((q) => {
+      const id = q.package?.package_id;
+      if (id && q.status !== 'closed' && !out[id]) out[id] = q;
+    });
+    return out;
+  }, [me]);
 
   const updateQuote = (q) => {
     setMe((prev) => (prev ? { ...prev, quotes: prev.quotes.map((x) => (x.case_id === q.case_id ? q : x)) } : prev));
@@ -528,23 +443,20 @@ export default function PortalApp() {
   };
 
   const quote = route.page === 'cotizacion' ? me?.quotes.find((q) => q.case_id === route.arg) : null;
-  const inQuoteSection = route.page === 'cotizar' || route.page === 'cotizacion';
 
   let page;
   if (inQuoteSection) {
     if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
     else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
     else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={() => go('cotizar')} onError={showError} />;
-    else page = <QuoteHome me={me} catalog={catalog} onOpen={openQuote} onRequest={requestQuote} busy={busy} />;
-  } else if (route.page === 'tienda') {
-    page = <ShopPage catalog={catalog} category={route.arg === 'paquetes' || CATEGORIES.some((c) => c.slug === route.arg) ? route.arg : null} query={route.q} onQuote={quoteFromShop} busy={busy} />;
-  } else if (route.page === 'nosotros') page = <AboutPage />;
-  else if (route.page === 'contacto') page = <ContactPage />;
-  else page = <HomePage catalog={catalog} onQuote={quoteFromShop} busy={busy} />;
+    else page = <QuoteHome me={me} onOpen={openQuote} onSwitch={switchCompany} />;
+  } else {
+    page = <HomePage catalog={catalog} onQuote={quoteFromShop} busy={busy} cotizados={cotizados} />;
+  }
 
   return (
     <div className="portal">
-      <Header route={route} customer={me?.customer} quoteCount={me?.quotes.length ?? 0} onSwitch={switchCompany} />
+      <MenuBar activo={inQuoteSection ? 'cotizar' : seccion} />
       {error && (
         <div className="p-error" role="alert">
           <span>{error}</span>
@@ -552,7 +464,8 @@ export default function PortalApp() {
         </div>
       )}
       {page}
-      <footer className="p-footer">Sitio de demostración del hackatón ByeCode. Nexo Solar es una empresa ficticia; no hay cobros reales.</footer>
+      <Pie />
+      {!inQuoteSection && <BotonCotizaciones cantidad={me?.quotes.length ?? 0} />}
     </div>
   );
 }
