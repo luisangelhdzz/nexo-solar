@@ -1,6 +1,20 @@
 # Entrega de Nexo Solar en Devpost
 
-Ficha preparada para copiar al formulario de Devpost. Pendiente del enlace del evento, integrantes y video. No enviada todavía. Verificar las preguntas específicas del evento antes de enviar.
+Ficha preparada para copiar al formulario de Devpost. Evento confirmado por el equipo; pendientes los integrantes y el enlace alojado del video. No enviada todavía. Verificar las preguntas específicas del evento antes de enviar.
+
+## Evento y estado de la entrega
+
+- Hackathon: https://hackathon-tecnm-saltillo.devpost.com/
+- Reto: ByeCode - What Should Happen Next?
+- Video recibido: IMG_7728.mp4, aproximadamente 2 minutos 57 segundos (176.97 s), 53.35 MiB.
+- Pendiente: subirlo a YouTube o Vimeo y agregar el enlace para los jueces. El MP4 local todavía no es un enlace de video de Devpost.
+- Estado: ficha preparada en el repositorio, sin envío confirmado en Devpost.
+- Video máximo del evento: 3 minutos; el archivo recibido cumple por duración.
+- Cierre configurado en Devpost: 10 de octubre de 2026, 15:00 hora de Saltillo/Monterrey (21:00 UTC). Confirmado desde el contador del evento: 2026-10-10T17:00:00-04:00.
+- Equipo requerido: de 3 a 5 integrantes, estudiantes activos. Pendientes sus nombres completos.
+- Entrega requerida: nombre y descripción, reto elegido, GitHub, video demo, tecnologías y nombres completos.
+- Uso de asistentes de IA: permitido por las bases si se declara. Usamos asistencia de IA durante el desarrollo y Gemini en el producto.
+- Fuentes: [Evento](https://hackathon-tecnm-saltillo.devpost.com/) y [Reglas](https://hackathon-tecnm-saltillo.devpost.com/rules).
 
 ## Nombre
 
@@ -62,7 +76,7 @@ Google Gemini, Tiger Data, PostgreSQL, React, Vite, JavaScript, Node.js, Express
 - Aplicación: https://nexo-solar.onrender.com
 - Portal del cliente: https://nexo-solar.onrender.com/portal#/cotizar
 - Código: https://github.com/luisangelhdzz/nexo-solar
-- Video: PENDIENTE — enlace de YouTube o Vimeo accesible para los jueces.
+- Video: archivo recibido y duración verificada; PENDIENTE el enlace de YouTube o Vimeo accesible para los jueces.
 
 ## Acceso de los jueces
 
@@ -81,7 +95,7 @@ La base de presentación incluye siete casos ficticios: solicitar información, 
 
 ## Pendientes de la entrega
 
-- Confirmar enlace del hackathon, fecha límite, idioma, duración máxima del video y categorías.
+- Seleccionar RETO BYECODE. Si el formulario permite premios de patrocinadores, revisar Best Use of Gemini API y Best Use of Tiger Data, que sí utilizamos; no seleccionar herramientas que no estén integradas.
 - Agregar integrantes reales e invitarlos al proyecto.
 - Añadir logo y capturas reales del portal, dashboard y asistente.
 - Añadir enlace del video.
