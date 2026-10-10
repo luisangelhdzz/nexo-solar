@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { portalApi, portalCustomer } from '../api.js';
+import { AboutPage, ContactPage, HomePage, ShopPage } from './Storefront.jsx';
+import { CATEGORIES } from './products.js';
+import { IconChevron, IconClose, IconDoc, IconMenu, IconSearch, IconTruck, IconUser } from './icons.jsx';
+import { dateMx, dayMx, go, money, parseHash } from './util.js';
 import './portal.css';
+import './storefront.css';
 
-// Portal público de Nexo Solar (empresa ficticia). Pensado para usarse desde el celular.
+// Portal público de Nexo Solar (empresa ficticia): tienda en línea con la cotización como una sección más.
 // Lo que hace el cliente aquí se registra como eventos; nunca se le muestra la recomendación interna.
-
-const money = (n) => `$${Number(n).toLocaleString('es-MX')}`;
-const dateMx = (iso) => (iso ? new Date(iso).toLocaleString('es-MX', { timeZone: 'America/Monterrey', dateStyle: 'medium', timeStyle: 'short' }) : '');
-const dayMx = (iso) => (iso ? new Date(iso).toLocaleDateString('es-MX', { timeZone: 'America/Monterrey', weekday: 'long', day: 'numeric', month: 'long' }) : '');
 
 function sectionText(id, pkg) {
   switch (id) {
@@ -34,20 +35,93 @@ const STATUS = {
 };
 const statusOf = (q) => (q.status === 'closed' ? STATUS[q.closed_status] : STATUS.open);
 
-function Header({ customer, onSwitch, onHome }) {
+const NAV = [
+  { page: 'inicio', label: 'Inicio', path: '' },
+  { page: 'tienda', label: 'Tienda', path: 'tienda' },
+  { page: 'ofertas', label: 'Ofertas', path: 'ofertas' },
+  { page: 'nosotros', label: 'Nosotros', path: 'nosotros' },
+  { page: 'contacto', label: 'Contacto', path: 'contacto' },
+];
+
+function Header({ route, customer, quoteCount, onSwitch }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [catsOpen, setCatsOpen] = useState(false);
+  const [search, setSearch] = useState(route.page === 'tienda' ? route.q : '');
+  const navRef = useRef(null);
+  const activePage = route.page === 'cotizacion' ? 'cotizar' : route.page;
+
+  // Cierra los menús al navegar, con Escape o al hacer clic fuera.
+  useEffect(() => { setMenuOpen(false); setCatsOpen(false); }, [route.page, route.arg]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') { setMenuOpen(false); setCatsOpen(false); } };
+    const onClick = (e) => { if (navRef.current && !navRef.current.contains(e.target)) setCatsOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('click', onClick);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('click', onClick); };
+  }, []);
+
+  const submitSearch = (e) => {
+    e.preventDefault();
+    const q = search.trim();
+    go(q ? `tienda?q=${encodeURIComponent(q)}` : 'tienda');
+  };
+
   return (
-    <header className="p-header">
-      <button type="button" className="p-brand" onClick={onHome} aria-label="Inicio">
-        <span className="p-sun" aria-hidden="true" />
-        <span>Nexo Solar</span>
-      </button>
-      {customer && (
-        <button type="button" className="p-switch" onClick={onSwitch}>
-          <span className="p-switch-name">{customer.name}</span>
-          <span className="p-switch-hint">Cambiar</span>
-        </button>
-      )}
-    </header>
+    <>
+      <div className="s-announce"><IconTruck width={16} height={16} /> Instalación e interconexión incluidas en todos los paquetes</div>
+      <header className="s-header-wrap">
+        <div className="s-header">
+          <button type="button" className="s-brand" onClick={() => go('')} aria-label="Nexo Solar, inicio">
+            <span className="p-sun" aria-hidden="true" />
+            <span>Nexo Solar</span>
+          </button>
+
+          <nav className={`s-nav ${menuOpen ? 'open' : ''}`} ref={navRef} aria-label="Principal">
+            {NAV.slice(0, 2).map((n) => (
+              <a key={n.page} href={`#/${n.path}`} className={activePage === n.page ? 'on' : ''}>{n.label}</a>
+            ))}
+            <div className="s-dropdown">
+              <button type="button" className="s-nav-btn" aria-expanded={catsOpen} onClick={() => setCatsOpen((v) => !v)}>
+                Categorías <IconChevron width={14} height={14} />
+              </button>
+              {catsOpen && (
+                <ul className="s-dropdown-menu">
+                  {CATEGORIES.map((c) => (
+                    <li key={c.slug}><a href={`#/tienda/${c.slug}`}>{c.label}</a></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {NAV.slice(2).map((n) => (
+              <a key={n.page} href={`#/${n.path}`} className={activePage === n.page ? 'on' : ''}>{n.label}</a>
+            ))}
+            <a href="#/cotizar" className={`s-nav-quote ${activePage === 'cotizar' ? 'on' : ''}`}>Cotizar</a>
+          </nav>
+
+          <form className="s-search" role="search" onSubmit={submitSearch}>
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar productos…" aria-label="Buscar productos" />
+            <button type="submit" aria-label="Buscar"><IconSearch width={18} height={18} /></button>
+          </form>
+
+          <div className="s-actions">
+            <a href="#/cotizar" className="s-action" aria-label={`Mis cotizaciones${quoteCount ? `, ${quoteCount}` : ''}`} title="Mis cotizaciones">
+              <IconDoc />
+              {quoteCount > 0 && <span className="s-count">{quoteCount}</span>}
+            </a>
+            {customer ? (
+              <button type="button" className="s-action s-account" onClick={onSwitch} title="Cambiar de empresa">
+                <IconUser /><span>{customer.name}</span>
+              </button>
+            ) : (
+              <a href="#/cotizar" className="s-action" aria-label="Entrar con mi empresa" title="Entrar con mi empresa"><IconUser /></a>
+            )}
+            <button type="button" className="s-action s-burger" aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+              {menuOpen ? <IconClose /> : <IconMenu />}
+            </button>
+          </div>
+        </div>
+      </header>
+    </>
   );
 }
 
@@ -111,7 +185,7 @@ function PickCompany({ onPicked, onError }) {
   );
 }
 
-function Home({ me, catalog, onOpen, onRequest, busy }) {
+function QuoteHome({ me, catalog, onOpen, onRequest, busy }) {
   const [showCatalog, setShowCatalog] = useState(!me.quotes.length);
   return (
     <main className="p-main">
@@ -382,7 +456,7 @@ export default function PortalApp() {
   const [customerId, setCustomerId] = useState(portalCustomer.get());
   const [me, setMe] = useState(null);
   const [catalog, setCatalog] = useState(null);
-  const [caseId, setCaseId] = useState(() => window.location.hash.match(/^#\/cotizacion\/(.+)$/)?.[1] ?? null);
+  const [route, setRoute] = useState(() => parseHash());
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -405,10 +479,16 @@ export default function PortalApp() {
   }, []);
   useEffect(() => { load(customerId); }, [customerId, load]);
   useEffect(() => {
-    const onHash = () => setCaseId(window.location.hash.match(/^#\/cotizacion\/(.+)$/)?.[1] ?? null);
+    const onHash = () => setRoute(parseHash());
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
+
+  // Cada página empieza arriba, salvo "Ofertas", que baja a su sección dentro del inicio.
+  useEffect(() => {
+    if (route.page === 'ofertas') document.getElementById('ofertas')?.scrollIntoView({ behavior: 'smooth' });
+    else window.scrollTo(0, 0);
+  }, [route.page, route.arg, route.q, catalog]);
 
   const pick = (cid) => {
     portalCustomer.set(cid);
@@ -419,10 +499,9 @@ export default function PortalApp() {
     portalCustomer.set(null);
     setCustomerId(null);
     setMe(null);
-    window.location.hash = '';
+    go('cotizar');
   };
-  const openQuote = (id) => { window.location.hash = `#/cotizacion/${id}`; window.scrollTo(0, 0); };
-  const goHome = () => { window.location.hash = ''; window.scrollTo(0, 0); };
+  const openQuote = (id) => go(`cotizacion/${id}`);
 
   const requestQuote = async (packageId) => {
     setBusy(true);
@@ -437,27 +516,42 @@ export default function PortalApp() {
     }
   };
 
+  // Desde la tienda: un paquete se cotiza directo si ya hay empresa; si no, se pasa por "Cotizar".
+  const quoteFromShop = (product) => {
+    if (product.package_id && customerId && me) requestQuote(product.package_id);
+    else go('cotizar');
+  };
+
   const updateQuote = (q) => {
     setMe((prev) => (prev ? { ...prev, quotes: prev.quotes.map((x) => (x.case_id === q.case_id ? q : x)) } : prev));
     setError(null);
   };
 
-  const quote = me?.quotes.find((q) => q.case_id === caseId);
+  const quote = route.page === 'cotizacion' ? me?.quotes.find((q) => q.case_id === route.arg) : null;
+  const inQuoteSection = route.page === 'cotizar' || route.page === 'cotizacion';
+
+  let page;
+  if (inQuoteSection) {
+    if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
+    else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
+    else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={() => go('cotizar')} onError={showError} />;
+    else page = <QuoteHome me={me} catalog={catalog} onOpen={openQuote} onRequest={requestQuote} busy={busy} />;
+  } else if (route.page === 'tienda') {
+    page = <ShopPage catalog={catalog} category={route.arg === 'paquetes' || CATEGORIES.some((c) => c.slug === route.arg) ? route.arg : null} query={route.q} onQuote={quoteFromShop} busy={busy} />;
+  } else if (route.page === 'nosotros') page = <AboutPage />;
+  else if (route.page === 'contacto') page = <ContactPage />;
+  else page = <HomePage catalog={catalog} onQuote={quoteFromShop} busy={busy} />;
 
   return (
     <div className="portal">
-      <Header customer={me?.customer} onSwitch={switchCompany} onHome={goHome} />
+      <Header route={route} customer={me?.customer} quoteCount={me?.quotes.length ?? 0} onSwitch={switchCompany} />
       {error && (
         <div className="p-error" role="alert">
           <span>{error}</span>
           <button type="button" className="p-link" onClick={() => setError(null)}>Cerrar</button>
         </div>
       )}
-      {!customerId && <PickCompany onPicked={pick} onError={showError} />}
-      {customerId && me && !quote && <Home me={me} catalog={catalog} onOpen={openQuote} onRequest={requestQuote} busy={busy} />}
-      {customerId && me && quote && (
-        <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={goHome} onError={showError} />
-      )}
+      {page}
       <footer className="p-footer">Sitio de demostración del hackatón ByeCode. Nexo Solar es una empresa ficticia; no hay cobros reales.</footer>
     </div>
   );
