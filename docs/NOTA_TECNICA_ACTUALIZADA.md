@@ -1,0 +1,13 @@
+# Nota técnica - Nexo Solar
+
+**Flujo y contexto.** Recibimos eventos JSONL o solicitudes del portal. Validamos cada línea, deduplicamos por event_id, agrupamos por case_id y conservamos historial y decisión anterior. Para el kit usamos evaluation_at de manifest.json; el portal usa reloj en vivo. React/Vite comunica con Node/Express; PostgreSQL en Tiger Data persiste los datos. Render aloja la aplicación.
+
+**Uso de IA.** Gemini interpreta intención, hechos, inferencias e información faltante. Recibe contexto del caso, restricciones y mensajes tratados como datos. El asistente recibe también la decisión vigente, conocimiento aprobado, ejemplos y lecciones. Limpiamos datos personales comunes del contexto. Validamos su salida; si falla, utilizamos clasificación y plantillas de respaldo. No reentrenamos los pesos del modelo.
+
+**Decisión y reglas.** La política propone una acción a partir del estado; el motor determinístico aplica R1-R6 y un guardián valida el contrato y la evidencia antes de publicar. R1: cierre definitivo, solo no actuar. R2: contacto prohibido. R3: fecha mínima. R4: 24 h tras contacto o petición de información, salvo mensaje posterior. R5: una apertura no confirma compra ni urgencia. R6: reconocer datos faltantes; la restricción prevalece. Cada envío vuelve a revisar las reglas.
+
+**Autonomía y consumo.** El despliegue utiliza draft: prepara borradores y el equipo revisa el envío. Las consultas internas de analistas no envían mensajes. El backend normaliza kWh a 30 días y calcula estimaciones por aparato a partir de cantidad, watts y uso declarados. Un inventario incompleto no genera un total; no deducimos paneles o consumo a partir de cuartos o pesos.
+
+**Incertidumbre y aprendizaje.** La confianza es cualitativa: depende de claridad y evidencia, no representa probabilidad de compra. El riesgo considera ambigüedad, objeciones, manipulación, monto y restricciones. Conservamos evidencia del mismo caso y explicamos cuándo reevaluar una espera. Al cerrar distinguimos motivos declarados de factores e hipótesis del historial. Lecciones y correcciones se reutilizan como contexto; las reglas no se reentrenan.
+
+**Verificación y límites.** Verificamos 151 pruebas: 149 correctas y 2 PostgreSQL omitidas; 0 fallos. El kit muestra P06 cambiando de espera a aclaración con un mensaje nuevo y P04 con contacto bloqueado. La demo utiliza empresas ficticias. Acceso al portal por enlaces de 30 días, no identidad verificada; comprobante simulado, no CFDI; sin cobros reales. n8n está integrado, pero la entrega en nube debe verificarse. Precios, garantías y condiciones son de demostración; el dimensionamiento requiere revisión técnica.

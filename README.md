@@ -25,6 +25,13 @@ consulta [la guía de despliegue](docs/RENDER.md).
 
 ---
 
+## Documentación y entrega
+
+- [Documentación actualizada del proyecto](docs/DOCUMENTACION_PROYECTO.md) y [PDF](output/pdf/Nexo_Solar_Documentacion.pdf).
+- [Nota técnica](NOTA_TECNICA.md) y [PDF de una página](output/pdf/Nexo_Solar_Nota_Tecnica.pdf).
+- [Ficha preparada para Devpost](docs/DEVPOST.md), pendiente de completar y enviar al evento.
+- [Guion y prompt para el video de tres minutos](docs/PROMPT_VIDEO_3_MINUTOS.md).
+
 ## 1. Requisitos
 
 - **Node.js 18.17 o superior.** Se recomienda la versión 20 LTS; en macOS se instala desde nodejs.org o con `brew install node@20`.
@@ -215,7 +222,7 @@ Guía completa, paso a paso: **[docs/GEMINI.md](docs/GEMINI.md)**.
 - **Contexto sin datos personales.** Por cada cotización recibe el historial, la decisión vigente del motor, las restricciones, el catálogo y las condiciones aprobadas (`backend/src/ai/conocimiento.js`). No recibe nombres, correos ni teléfonos: el saludo usa `{nombre}` y el backend lo llena.
 - **Respuesta estructurada.** Resumen, necesidad del cliente, acción y momento, explicación con evidencia, borrador, datos faltantes y si hace falta revisión humana.
 - **Validación.** La acción autorizada siempre es la del motor de reglas; las reglas se revisan otra vez a la hora actual; el borrador solo se puede enviar si el contacto está permitido y no ofrece descuentos, no presiona (R5), solo usa cifras aprobadas y no trae enlaces ni teléfonos.
-- **Ejemplos y correcciones.** Seis ejemplos revisados (`ejemplos.js`) y las correcciones que el equipo hace a los borradores orientan las siguientes propuestas. No se reentrena el modelo. `npm run ai:eval` lo mide con casos aparte.
+- **Ejemplos y correcciones.** Ejemplos revisados (`ejemplos.js`) y las correcciones que el equipo hace a los borradores orientan las siguientes propuestas. No se reentrena el modelo. `npm run ai:eval` lo mide con casos aparte.
 - **Autonomía por pasos.** `ASSISTANT_AUTOPILOT=draft` prepara borradores al llegar mensajes y en revisiones programadas; `auto` envía solo lo que pasa todas las validaciones, revisando las reglas justo antes de enviar y sin duplicados.
 - **Verificación.** `npm run ai:check` prueba la conexión sin mostrar la clave y `npm run ai:diagnose` mide cuánto tarda la propuesta.
 
