@@ -421,12 +421,12 @@ export default function PortalApp() {
     setCustomerId(cid);
     setError(null);
   };
-  const switchCompany = () => {
+  const switchCompany = (destination = 'mis-cotizaciones') => {
     portalCustomer.set(null);
     portalAccess.set(null);
     setCustomerId(null);
     setMe(null);
-    go('mis-cotizaciones');
+    go(typeof destination === 'string' ? destination : 'mis-cotizaciones');
   };
   const openQuote = (id) => go(`cotizacion/${id}`);
 
@@ -452,7 +452,7 @@ export default function PortalApp() {
   let page;
   if (inQuoteSection) {
     if (openingAccess) page = <main className="p-main"><p role="status">Abriendo tu cotización…</p></main>;
-    else if (route.page === 'cotizar') page = <RequestForm customer={me?.customer} onSubmit={submitRequest} busy={busy} />;
+    else if (route.page === 'cotizar') page = <RequestForm key={me?.access_case_id ? 'new' : customerId || 'new'} customer={me?.access_case_id ? null : me?.customer} onNewCustomer={() => switchCompany('cotizar')} onSubmit={submitRequest} busy={busy} />;
     else if (!customerId) page = <PortalEntry />;
     else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
     else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onRefresh={refresh} onBack={() => go('mis-cotizaciones')} onError={showError} />;

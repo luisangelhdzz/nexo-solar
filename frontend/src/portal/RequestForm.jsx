@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { go } from './util.js';
 
-export default function RequestForm({ customer, onSubmit, busy }) {
+export default function RequestForm({ customer, onSubmit, onNewCustomer, busy }) {
   const [form, setForm] = useState(() => ({
     name: customer?.name ?? '', contact_name: customer?.contact_name ?? '',
     segment: customer?.segment ?? '', city: customer?.city ?? '',
@@ -25,10 +25,14 @@ export default function RequestForm({ customer, onSubmit, busy }) {
         e.preventDefault();
         onSubmit({ ...form, contact_not_before: form.contact_date ? new Date(`${form.contact_date}T09:00:00`).toISOString() : null });
       }}>
+        {customer && <div className="p-form-session">
+          <p>Estás solicitando para <strong>{customer.name}</strong>.</p>
+          <button type="button" className="p-link" disabled={busy} onClick={onNewCustomer}>Usar otros datos</button>
+        </div>}
         <fieldset disabled={busy}>
           <legend>1. Tu proyecto y contacto</legend>
           <div className="p-form-grid">
-            <label>Nombre del proyecto o negocio<input required maxLength={80} value={form.name} onChange={set('name')} autoComplete="organization" placeholder="Ferretería Los Pinos" readOnly={Boolean(customer)} /></label>
+            <label>Nombre del proyecto o negocio<input required maxLength={80} value={form.name} onChange={set('name')} autoComplete="organization" placeholder="Escribe el nombre de tu proyecto" readOnly={Boolean(customer)} /></label>
             <label>Tu nombre<input required maxLength={80} value={form.contact_name} onChange={set('contact_name')} autoComplete="name" /></label>
             <label>Ciudad<input required maxLength={60} value={form.city} onChange={set('city')} autoComplete="address-level2" placeholder="Saltillo, Coahuila" /></label>
             <label>Actividad o uso del inmueble<input maxLength={60} value={form.segment} onChange={set('segment')} placeholder="Comercio, taller, industria…" /></label>
