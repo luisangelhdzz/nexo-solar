@@ -1,49 +1,36 @@
-# Despliegue en Render (Blueprint): New > Blueprint > elige este repositorio.
-# Crea un servicio web (consola en / y portal en /portal) y una base PostgreSQL gratuita.
-# Las variables con `sync: false` se llenan en el panel de Render; nunca se suben al repositorio.
+# Un servicio gratuito: consola, portal y API. Usa la base existente de Tiger Data.
+# New > Blueprint > selecciona este repositorio. Los secretos se completan en Render.
 services:
   - type: web
     name: nexo-solar
     runtime: node
     plan: free
-    buildCommand: npm run setup
-    startCommand: npm start
+    branch: main
+    buildCommand: npm ci --prefix backend && npm ci --prefix frontend --include=dev && npm run build --prefix frontend
+    startCommand: cd backend && sh ../deploy/start.sh
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
+      - key: NODE_ENV
+        value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: nexo-solar-db
-          property: connectionString
-      - key: SEED_DEMO
+        sync: false
+      - key: DATABASE_SSL
         value: "true"
+      - key: DATABASE_SSL_CA_FILE
+        value: certs/tiger-ca.crt
       - key: ADMIN_PASSWORD
         sync: false
-      # Sin GEMINI_API_KEY el sistema usa el clasificador de respaldo y plantillas.
+      - key: SEED_DEMO
+        value: "false"
       - key: AI_PROVIDER
         value: gemini
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-3.8-flash
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_REASONING_EFFORT
+        value: low
       - key: ASSISTANT_AUTOPILOT
         value: draft
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: OPENAI_BASE_URL
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        sync: false
-      - key: N8N_WEBHOOK_URL
-        sync: false
-      - key: N8N_WEBHOOK_SECRET
-        sync: false
-
-databases:
-  - name: nexo-solar-db
-    plan: free
-    databaseName: nexo_solar
-    user: nexo
