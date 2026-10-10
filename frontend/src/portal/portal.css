@@ -221,9 +221,10 @@
 
 /* Solicitud de proyecto y conversación compartida con el equipo. */
 .p-request-main { max-width: 860px; }
-.p-request-form fieldset { border: 0; padding: 0; margin: 0 0 1.5rem; min-width: 0; }
-.p-request-form legend { color: var(--p-ink); font-size: 1.08rem; font-weight: 600; margin-bottom: 1rem; }
-.p-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.p-request-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.p-request-form fieldset + fieldset { border-top: 1px solid var(--p-line); padding-top: 1.8rem; margin-top: 1.8rem; }
+.p-request-form legend { color: var(--p-ink); font-size: 1.08rem; font-weight: 600; margin-bottom: 1.25rem; padding: 0; float: left; width: 100%; }
+.p-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem 1.5rem; clear: both; align-items: start; }
 .p-full { grid-column: 1 / -1; }
 .portal .p-form select { width: 100%; padding: .75rem; background: var(--p-bg); color: var(--p-ink); border: 1px solid var(--p-line); border-radius: 8px; font: inherit; }
 .portal .p-check { display: flex; flex-direction: row; align-items: flex-start; gap: .7rem; margin-top: 1rem; }
@@ -232,3 +233,24 @@
 .portal .p-team-message { background: rgba(47, 212, 160, .08); border-left: 3px solid var(--p-ok); padding: .9rem; border-radius: 8px; }
 .portal .p-messages { max-height: 380px; overflow-y: auto; }
 @media (max-width: 620px) { .p-form-grid { grid-template-columns: 1fr; } }
+
+/* Mantiene títulos y controles alineados, incluso con notas opcionales. */
+.portal .p-request-form { padding: 2rem; gap: 0; }
+.portal .p-request-form label { gap: .5rem; min-width: 0; }
+.portal .p-field-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .6rem; }
+.portal .p-field-heading small { color: var(--p-soft); font-size: .75rem; font-weight: 400; }
+.portal .p-field-help { color: var(--p-soft); font-size: .78rem; font-weight: 400; line-height: 1.5; }
+.portal .p-request-form input:not([type="checkbox"]),
+.portal .p-request-form select { box-sizing: border-box; width: 100%; min-width: 0; height: 50px; padding: .75rem .9rem; border-radius: 10px; font-size: .9rem; font-weight: 400; }
+.portal .p-request-form textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; line-height: 1.6; font-size: .9rem; }
+.portal .p-request-form select:focus-visible { outline: 2px solid var(--p-sun); outline-offset: 2px; }
+.portal .p-request-form .p-check { align-items: flex-start; gap: .75rem; margin-top: 1.25rem; line-height: 1.6; }
+.portal .p-request-form .p-check input { width: 18px; height: 18px; min-height: 0; padding: 0; margin: .2rem 0 0; }
+.portal .p-request-actions { display: flex; flex-direction: column; align-items: stretch; gap: .9rem; border-top: 1px solid var(--p-line); margin-top: 1.8rem; padding-top: 1.5rem; }
+.portal .p-request-actions p { margin: 0 0 .3rem; font-size: .85rem; line-height: 1.7; }
+.portal .p-request-actions .p-link { align-self: center; text-align: center; }
+@media (max-width: 620px) {
+  .portal .p-request-form { padding: 1.25rem; }
+  .portal .p-field-heading { justify-content: space-between; }
+  .portal .p-request-form legend { font-size: 1rem; }
+}

@@ -38,7 +38,7 @@ export default function RequestForm({ customer, onSubmit, busy }) {
         <fieldset disabled={busy}>
           <legend>2. Tu proyecto</legend>
           <div className="p-form-grid">
-            <label>¿Cuánto pagas de luz? <span className="p-muted">Opcional · MXN</span><input type="number" min="1" max="10000000" value={form.monthly_bill_mxn} onChange={set('monthly_bill_mxn')} placeholder="Ej.: 8000" /></label>
+            <label><span className="p-field-heading">¿Cuánto pagas de luz? <small>Opcional</small></span><input type="number" min="1" max="10000000" value={form.monthly_bill_mxn} onChange={set('monthly_bill_mxn')} placeholder="Ej.: 8000" /><span className="p-field-help">Importe de tu recibo en pesos mexicanos (MXN).</span></label>
             <label>Periodo del recibo<select value={form.bill_period} onChange={set('bill_period')}><option value="bimonthly">Cada dos meses</option><option value="monthly">Cada mes</option></select></label>
             <label className="p-full">Espacio para instalar<select value={form.roof} onChange={set('roof')}><option>Por confirmar</option><option>Azotea de concreto</option><option>Techo de lámina</option><option>Terreno</option><option>Otro</option></select></label>
             <label className="p-full">¿Qué necesitas?<textarea required minLength={5} maxLength={1000} rows={4} value={form.goal} onChange={set('goal')} placeholder="Quiero reducir el gasto de luz de mi negocio. También me interesa conocer las opciones de financiamiento." /></label>
@@ -48,14 +48,14 @@ export default function RequestForm({ customer, onSubmit, busy }) {
           <legend>3. Contacto a tu ritmo</legend>
           <div className="p-form-grid">
             <label>Medio preferido<select value={form.contact_channel} onChange={set('contact_channel')}><option value="email">Correo electrónico</option><option value="whatsapp">WhatsApp</option><option value="phone">Llamada</option></select></label>
-            <label>Contactarme a partir de <span className="p-muted">Opcional</span><input type="date" value={form.contact_date} onChange={set('contact_date')} /></label>
+            <label><span className="p-field-heading">Contactarme a partir de <small>Opcional</small></span><input type="date" value={form.contact_date} onChange={set('contact_date')} /></label>
           </div>
           <label className="p-check"><input type="checkbox" checked={form.contact_allowed} onChange={set('contact_allowed')} /><span>Autorizo que me contacten sobre esta solicitud.</span></label>
           {!form.contact_allowed && <p className="p-muted">Guardaremos tu solicitud. El equipo no podrá enviarte mensajes ni publicar la propuesta hasta que habilites el contacto.</p>}
         </fieldset>
-        <p className="p-muted">Esta solicitud no confirma una compra ni fija un precio. Tu propuesta aparecerá en Mis cotizaciones cuando esté preparada.</p>
+        <div className="p-request-actions"><p className="p-muted">Esta solicitud no confirma una compra ni fija un precio. Tu propuesta aparecerá en Mis cotizaciones cuando esté preparada.</p>
         <button type="submit" className="p-btn p-btn-sun" disabled={busy}>{busy ? 'Enviando solicitud…' : 'Solicitar mi cotización'}</button>
-        <button type="button" className="p-link" onClick={() => go('mis-cotizaciones')}>Ver mis solicitudes y cotizaciones</button>
+        <button type="button" className="p-link" onClick={() => go('mis-cotizaciones')}>Ver mis solicitudes y cotizaciones</button></div>
       </form>
     </main>
   );

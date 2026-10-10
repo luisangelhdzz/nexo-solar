@@ -8,14 +8,14 @@ const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: re
 
 /* ============================================================
    NAVEGACIÓN
-   Las secciones de la página de inicio tienen su propia ruta (#/productos,
-   #/como-cotizar, #/contacto) para que se puedan compartir y para que
-   "Mis cotizaciones" (#/cotizar) conviva con ellas.
+   Las secciones de la página de inicio tienen su propia ruta (#/como-cotizar,
+   #/contacto) para que se puedan compartir junto con el formulario y
+   "Mis cotizaciones" (#/mis-cotizaciones).
    ============================================================ */
 export const SECCION_DE_RUTA = {
   inicio: 'inicio',
-  productos: 'productos',
-  tienda: 'productos',
+  productos: 'inicio',
+  tienda: 'inicio',
   'como-cotizar': 'metodos',
   contacto: 'contacto',
   ofertas: 'promo',
@@ -46,7 +46,7 @@ export function useSeccionActiva(activa, deps = []) {
   const [seccion, setSeccion] = useState('inicio');
   useEffect(() => {
     if (!activa || !('IntersectionObserver' in window)) return undefined;
-    const ids = ['inicio', 'productos', 'metodos', 'contacto'];
+    const ids = ['inicio', 'metodos', 'contacto'];
     const obs = new IntersectionObserver((entradas) => {
       entradas.forEach((e) => { if (e.isIntersecting) setSeccion(e.target.id); });
     }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
@@ -345,12 +345,6 @@ export function HomePage() {
   return (
     <>
       <Encabezado />
-      <section className="productos request-intro" id="productos">
-        <div className="container request-intro-grid">
-          <div><span className="eyebrow">Hecho para tu negocio</span><h2>Una cotización que empieza contigo</h2><p className="txt-p">No necesitas elegir un kit. Cuéntanos tu consumo y tus objetivos; el equipo preparará una propuesta que puedas revisar con calma.</p><button type="button" className="btn-1" onClick={() => go('cotizar')}>Solicitar cotización</button></div>
-          <ol className="request-benefits"><li><span>01</span><div><h3>Comparte lo que necesitas</h3><p>Un formulario sencillo, sin comprometerte a comprar.</p></div></li><li><span>02</span><div><h3>Recibe una propuesta</h3><p>Precio, instalación y condiciones en un solo lugar.</p></div></li><li><span>03</span><div><h3>Seguimiento a tu ritmo</h3><p>Pregunta y elige cuándo podemos contactarte.</p></div></li></ol>
-        </div>
-      </section>
       <Promo />
       <Metodos />
     </>
