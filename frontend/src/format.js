@@ -6,7 +6,7 @@ export const ACTION_LABEL = {
   contact: 'Dar seguimiento',
   request_information: 'Pedir información',
   resolve_objection: 'Aclarar duda',
-  escalate: 'Escalar a una persona',
+  escalate: 'Revisar con el equipo',
   wait: 'Esperar',
   no_action: 'No actuar',
 };

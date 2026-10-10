@@ -23,6 +23,9 @@ export function buildCaseState(caseId, orderedEvents) {
     proposal_event_id: null,
     proposal: null,
     closed_status: null,
+    closed_reason: null,
+    closed_notes: null,
+    closed_by: null,
     closed_event_id: null,
     closed_at: null,
     contact_allowed: true,
@@ -111,6 +114,9 @@ export function buildCaseState(caseId, orderedEvents) {
       case 'case.closed':
         state.status = 'closed';
         state.closed_status = ev.data.status;
+        state.closed_reason = ev.data.reason ?? null;
+        state.closed_notes = ev.data.notes ?? null;
+        state.closed_by = ev.data.closed_by ?? null;
         state.closed_event_id = ev.event_id;
         state.closed_at = at;
         break;

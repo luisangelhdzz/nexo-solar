@@ -545,6 +545,8 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
         open: cases.filter((c) => c.status !== 'closed').length,
         closed: cases.filter((c) => c.status === 'closed').length,
         accepted: cases.filter((c) => c.closed_status === 'accepted').length,
+        rejected: cases.filter((c) => c.closed_status === 'rejected').length,
+        cancelled: cases.filter((c) => c.closed_status === 'cancelled').length,
         evaluated: evaluated.length,
         stale: cases.filter((c) => c.stale).length,
       },

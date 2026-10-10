@@ -47,6 +47,9 @@ function validateData(type, data) {
       break;
     }
     case 'case.closed':
+      for (const [key, max] of [['reason', 200], ['notes', 1000]]) {
+        if (data[key] !== undefined && (typeof data[key] !== 'string' || data[key].length > max)) errors.push(`data.${key} debe ser texto de hasta ${max} caracteres`);
+      }
       if (!CLOSED_STATUSES.includes(data.status)) {
         errors.push(`data.status debe ser uno de: ${CLOSED_STATUSES.join(', ')}`);
       }

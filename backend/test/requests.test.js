@@ -106,3 +106,40 @@ test('Un mensaje posterior dentro del mismo minuto permite responder sin romper 
   await portal.reply(q.case_id, { message: 'Sí, incluye instalación.' });
   assert.equal((await portal.getCustomerView(cid)).quotes[0].conversation.at(-1).from, 'team');
 });
+
+test('Cierre comercial guarda motivo real, detiene seguimiento y no se puede cerrar dos veces', async () => {
+  const { portal, cid, engine } = await setup();
+  const q = await portal.submitRequest(cid, input);
+  const results = await Promise.allSettled([
+    portal.closeCase(q.case_id, { status: 'rejected', reason: 'Inconvenientes de instalación', notes: 'El techo necesita reparación.' }),
+    portal.closeCase(q.case_id, { status: 'accepted', reason: 'Propuesta aceptada' }),
+  ]);
+  assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
+  const closed = await engine.getCase(q.case_id);
+  assert.equal(closed.state.closed_reason, 'Inconvenientes de instalación');
+  assert.equal(closed.state.closed_notes, 'El techo necesita reparación.');
+  assert.equal(closed.outcome.reported_reason, 'Inconvenientes de instalación');
+  assert.equal(closed.current.recommendation.action, 'no_action');
+  assert.equal((await engine.summary()).totals.rejected, 1);
+  await assert.rejects(portal.reply(q.case_id, { message: 'Hola de nuevo.' }), { code: 'CONTACT_BLOCKED' });
+  assert.equal((await portal.getCustomerView(cid)).quotes[0].closed_status, 'rejected');
+});
+
+test('Venta requiere propuesta publicada; cierre requiere motivo y autenticación de consola', async () => {
+  const { portal, cid, engine } = await setup();
+  const q = await portal.submitRequest(cid, input);
+  await assert.rejects(portal.closeCase(q.case_id, { status: 'accepted', reason: 'Propuesta aceptada' }), { code: 'PROPOSAL_PENDING' });
+  await assert.rejects(portal.closeCase(q.case_id, { status: 'rejected' }), /motivo/);
+  await portal.sendProposal(q.case_id, proposal);
+  const server = createApp(engine, { adminPassword: 'equipo-test', assistant: { mode: 'off', provider: null } }).listen(0);
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/cases/${q.case_id}/close`;
+    const body = JSON.stringify({ status: 'accepted', reason: 'Ahorro esperado' });
+    assert.equal((await fetch(url, { method: 'POST', headers: {'content-type':'application/json'}, body })).status, 401);
+    const r = await fetch(url, { method: 'POST', headers: {'content-type':'application/json','x-admin-password':'equipo-test'}, body });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).state.closed_status, 'accepted');
+    assert.equal((await engine.summary()).totals.accepted, 1);
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});

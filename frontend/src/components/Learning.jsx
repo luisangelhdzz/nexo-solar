@@ -11,7 +11,7 @@ function Funnel({ funnel }) {
   const max = Math.max(1, ...funnel.map((f) => f.reached));
   return (
     <figure className="funnel">
-      <figcaption>Cotizaciones que llegaron a cada etapa (una cotización puede saltarse etapas, por ejemplo comprar directo después de revisar)</figcaption>
+      <figcaption>Avance de las cotizaciones</figcaption>
       <ol>
         {funnel.map((f) => (
           <li key={f.stage} className={`funnel-row funnel-${f.stage}`} title={`${f.label}: ${f.reached} llegaron; ${f.open_now} abiertas están aquí ahora`}>
@@ -40,8 +40,8 @@ export default function Learning({ insights, onSetMode, onOpenCase, busy }) {
           <h3>Aprendizaje {active ? 'activo' : 'en pausa'}</h3>
           <p className="muted">
             {active
-              ? 'Las recomendaciones usan lo aprendido de las cotizaciones cerradas. Las reglas R1–R6 nunca cambian.'
-              : 'Las recomendaciones usan los valores predeterminados. Las lecciones se siguen registrando.'}
+              ? 'Usamos los resultados anteriores para mejorar el seguimiento.'
+              : 'El seguimiento usa los tiempos predeterminados.'}
           </p>
         </div>
         <div className="segmented" role="radiogroup" aria-label="Modo">

@@ -71,6 +71,7 @@ export const api = {
   advanceClock: (hours) => request('POST', '/settings/clock/advance', { hours }),
   uploadEvents: (content, source) => request('POST', '/events', { content, source }),
   evaluate: (caseIds) => request('POST', '/evaluate', caseIds ? { case_ids: caseIds } : {}),
+  closeCase: (id, data) => request('POST', `/cases/${encodeURIComponent(id)}/close`, data),
   addEvent: (id, event) => request('POST', `/cases/${encodeURIComponent(id)}/events`, event),
   exportJson: () => request('GET', '/export'),
   loadKitFile: (file) => request('POST', `/demo/kit/${file}`, {}),

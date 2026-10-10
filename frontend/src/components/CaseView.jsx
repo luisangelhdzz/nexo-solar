@@ -3,6 +3,7 @@ import {
   ACTIONS, ACTION_HINT, ACTION_LABEL, CLOSED_LABEL, EVENT_LABEL, FIELD_LABEL, INTENT_LABEL,
   LEVEL_LABEL, RISK_LABEL, fmtMoney, fmtUtc, eventSummary, timingText, valueText,
 } from '../format.js';
+import CloseCasePanel from './CloseCasePanel.jsx';
 import ProposalPanel from './ProposalPanel.jsx';
 import Simulator from './Simulator.jsx';
 import PatienceMeter from './PatienceMeter.jsx';
@@ -66,7 +67,7 @@ function OutcomePanel({ outcome, lesson }) {
     <section className={`panel outcome-panel ${won ? 'outcome-panel-won' : 'outcome-panel-lost'}`} aria-label="Análisis del resultado">
       <h3>{won ? 'Por qué se compró' : 'Por qué no se compró'}</h3>
       <p className="outcome-summary">{outcome.summary}</p>
-      <div className="factor-cols">
+      <details className="outcome-details"><summary>Ver análisis del historial</summary><div className="factor-cols">
         <div>
           <h4>A favor de la compra</h4>
           {pos.length ? <ul className="plain">{pos.map((f) => <li key={f.id}><strong>{f.label}.</strong> {f.detail}</li>)}</ul> : <p className="muted small">Ninguno destacado.</p>}
@@ -80,6 +81,8 @@ function OutcomePanel({ outcome, lesson }) {
         Dudas: {outcome.metrics.doubts} ({outcome.metrics.unanswered} sin respuesta). Contactos de la empresa: {outcome.metrics.company_contacts}
         {outcome.metrics.contacts_during_wait ? `, ${outcome.metrics.contacts_during_wait} durante una espera recomendada` : ''}. Secciones revisadas: {outcome.metrics.sections_viewed}.
       </p>
+      </details>
+      {outcome.reported_notes && <p className="muted">{outcome.reported_notes}</p>}
       {lesson && (
         <p className="lesson-box">
           <strong>Lección:</strong> {lesson.lesson}{' '}
@@ -149,7 +152,7 @@ function DecisionHero({ rec, trace, evaluatedAt }) {
           El validador reemplazó la recomendación original ({trace.guardian.replaced_reason}).
         </p>
       )}
-      <p className="hero-evaluated">Última evaluación: {fmtUtc(evaluatedAt)}</p>
+
     </section>
   );
 }
@@ -446,7 +449,7 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
   return (
     <article className="caseview">
       <header className="case-header">
-        <h2>{detail.case_id}</h2>
+        <h2>{detail.customer?.name || detail.case_id}</h2>
         <span className="pill">{state.proposal_pending ? 'Monto por definir' : fmtMoney(state.amount_mxn)}</span>
         <span className="pill">
           {state.status === 'closed' ? `Cerrado: ${CLOSED_LABEL[state.closed_status]}` : state.status === 'open' ? 'Abierto' : 'Sin apertura'}
@@ -467,19 +470,19 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
         </div>
       )}
 
+      {rec && state.status !== 'closed' && <DecisionHero rec={rec} trace={d?.trace} evaluatedAt={current.evaluation_at} />}
+      <CloseCasePanel key={`close-${detail.case_id}`} detail={detail} onUpdate={onUpdate} busy={Boolean(busy)} />
       <ProposalPanel key={detail.case_id} detail={detail} onUpdate={onUpdate} busy={Boolean(busy)} />
 
       {rec && (
         <>
-          <DecisionHero rec={rec} trace={d?.trace} evaluatedAt={current.evaluation_at} />
           <OutcomePanel outcome={detail.outcome} lesson={detail.lesson} />
-          <CustomerContext customer={detail.customer} trace={d?.trace} state={state} rec={rec} now={evaluationAt} />
+          <details className="case-more"><summary>Datos del cliente y tiempos habituales</summary><CustomerContext customer={detail.customer} trace={d?.trace} state={state} rec={rec} now={evaluationAt} /></details>
           <StagePath stages={detail.stages} />
-          <ChangePanel current={current} previous={previous} />
-          <ActionBoard rec={rec} rules={d?.rules} trace={d?.trace} />
+          <details className="case-more"><summary>Qué cambió y reglas de seguimiento</summary><ChangePanel current={current} previous={previous} /><ActionBoard rec={rec} rules={d?.rules} trace={d?.trace} /></details>
           <div className="case-columns">
             <div className="col-left">
-              <WhyPanel rec={rec} trace={d?.trace} onHover={setHighlighted} />
+              <details className="case-more"><summary>Por qué recomendamos este paso</summary><WhyPanel rec={rec} trace={d?.trace} onHover={setHighlighted} /></details>
               <details className="case-more"><summary>Ver cómo se decidió</summary><TracePanel trace={d?.trace} rec={rec} /></details>
             </div>
             <div className="col-right">
@@ -493,7 +496,7 @@ export default function CaseView({ detail, evaluationAt, clockMode, onSimulate, 
                 warnings={d?.state?.warnings}
               />
               <Issues issues={detail.ingest_issues} />
-              <Simulator caseId={detail.case_id} evaluationAt={evaluationAt} onSubmit={onSimulate} busy={busy} closed={state.status === 'closed'} />
+              <details className="case-more"><summary>Herramientas de demostración</summary><Simulator caseId={detail.case_id} evaluationAt={evaluationAt} onSubmit={onSimulate} busy={busy} closed={state.status === 'closed'} /></details>
             </div>
           </div>
         </>

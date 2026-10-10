@@ -76,8 +76,8 @@ export default function AssistantPanel({ detail, onUseDraft, disabled }) {
         <div>
           <h4>Asistente comercial</h4>
           <p className="muted small">
-            {ai?.mode === 'ai' ? `IA: ${ai.provider} (${ai.model})` : 'Sin IA: usa plantillas y el conocimiento aprobado'}
-            {data?.mode ? ` · ${MODE[data.mode] ?? data.mode}` : ''}. Propone; las reglas R1–R6 deciden.
+            {ai?.mode === 'ai' ? `Conectado a ${ai.provider}` : 'Usando borradores de apoyo'}
+            {data?.mode ? ` · ${MODE[data.mode] ?? data.mode}` : ''}.
           </p>
         </div>
         <button type="button" className="btn btn-small" onClick={generate} disabled={loading || disabled}>
@@ -109,7 +109,8 @@ function AssistantRun({ run, current, waiting, onUseDraft, disabled }) {
       {!current && <p className="assistant-alert small">{waiting ? 'Hay cambios en la cotización; el asistente está preparando una propuesta nueva.' : 'Hay cambios después de esta propuesta. Genera una nueva para usarla.'}</p>}
       {(p.fallback_reason || p.note) && <p className="muted small">{p.fallback_reason || p.note}</p>}
 
-      <dl className="assistant-grid">
+      <p className="assistant-next"><strong>{ACTION_LABEL[v.authorized.action] ?? v.authorized.action}</strong> · {timingText(v.authorized)}</p>
+      <details className="assistant-checks"><summary>Ver análisis del asistente</summary><dl className="assistant-grid">
         <div><dt>Resumen</dt><dd>{p.summary}</dd></div>
         <div><dt>Necesidad del cliente</dt><dd>{p.customer_need}</dd></div>
         <div>
@@ -139,7 +140,7 @@ function AssistantRun({ run, current, waiting, onUseDraft, disabled }) {
         {p.missing_information.length > 0 && (
           <div className="wide"><dt>Datos faltantes</dt><dd><ul>{p.missing_information.map((m) => <li key={m}>{m}</li>)}</ul></dd></div>
         )}
-      </dl>
+      </dl></details>
 
       {draft && (
         <div className={`assistant-draft${draft.sendable ? '' : ' is-blocked'}`}>

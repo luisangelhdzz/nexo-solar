@@ -119,6 +119,8 @@ export function createApiRouter(engine, { portal, storage, adminPassword = '', a
     res.json(await engine.getCase(req.params.id));
   }));
 
+  r.post('/cases/:id/close', wrap(async (req, res) => res.json(await portal.closeCase(req.params.id, req.body ?? {}))));
+
   r.get('/proposal-options', (req, res) => res.json(portal.catalog()));
   r.post('/cases/:id/proposal', wrap(async (req, res) => res.json(await portal.sendProposal(req.params.id, req.body ?? {}))));
   r.post('/cases/:id/reply', wrap(async (req, res) => {

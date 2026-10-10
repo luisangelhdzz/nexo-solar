@@ -200,6 +200,21 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       return caseView(buildCaseState(caseId, events), events);
     },
 
+    async closeCase(caseId, input = {}) {
+      return deliver(async () => {
+        const events = await storage.getCaseEvents(caseId);
+        if (!events.length) throw new EngineError('No encontramos esa cotización.', 404, 'NOT_FOUND');
+        const state = buildCaseState(caseId, events);
+        if (state.status !== 'open') throw new EngineError('Esta cotización ya está cerrada.', 409, 'ALREADY_CLOSED');
+        if (!['accepted', 'rejected', 'cancelled'].includes(input.status)) throw new EngineError('Selecciona un resultado válido.');
+        if (input.status === 'accepted' && state.proposal_pending) throw new EngineError('Publica una propuesta con precio antes de registrar la venta.', 409, 'PROPOSAL_PENDING');
+        const reason = clean(input.reason, 200);
+        if (!reason) throw new EngineError('Selecciona el motivo del cierre.');
+        await emit(caseId, 'case.closed', { status: input.status, reason, notes: clean(input.notes, 1000), closed_by: 'team' }, events.length);
+        return engine.getCase(caseId);
+      });
+    },
+
     async sendProposal(caseId, input = {}) {
       return deliver(async () => {
         const pkg = findPackage(input.package_id);
