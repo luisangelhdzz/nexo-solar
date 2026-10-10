@@ -1,0 +1,104 @@
+{
+  "name": "Nexo Solar - Correos al cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nexo-solar-correos",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "734cc11c-1f43-48bf-b344-2e46130a59af",
+      "name": "Webhook (Nexo Solar)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "67560b8b-f76c-4f9b-8f92-ad3fc9de6334"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "Nexo Solar"
+        }
+      },
+      "id": "bad7b26f-d47a-43f0-aa6c-8755d64ecbe3",
+      "name": "Enviar por Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        280,
+        0
+      ],
+      "webhookId": "a5fc6083-82bd-4150-b3fb-e4b1cac3748a"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"event\": $('Webhook (Nexo Solar)').item.json.body.event, \"id\": $('Webhook (Nexo Solar)').item.json.body.id } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "dd120a2d-6ae9-4a01-acc2-550a8578bbdd",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Correos al cliente de Nexo Solar\nEl backend manda aquí 3 tipos de correo, ya armados (destinatario, asunto y HTML):\n- **solicitud.recibida**: el cliente pidió su cotización\n- **propuesta.enviada**: el equipo publicó la propuesta\n- **compra.completada**: comprobante de compra\n\n**Configura 2 cosas:**\n1. Webhook → Credential: *Header Auth* con Name `x-nexo-secret` y Value = tu `N8N_WEBHOOK_SECRET`.\n2. Enviar por Gmail → conecta tu cuenta de Gmail.\n\nLuego actívalo/publícalo y copia la **Production URL** en `N8N_WEBHOOK_URL`.",
+        "height": 340,
+        "width": 520
+      },
+      "id": "61ed61c0-8112-4adf-9fbd-46bcc11bafa0",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (Nexo Solar)": {
+      "main": [
+        [
+          {
+            "node": "Enviar por Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar por Gmail": {
+      "main": [
+        [
+          {
+            "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

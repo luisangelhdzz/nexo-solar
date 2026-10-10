@@ -12,13 +12,30 @@ import { EngineError } from '../services/engine.js';
 import { buildCaseState, pendingMessages } from '../domain/state.js';
 import { isIsoUtc, toIso, toMs } from '../domain/time.js';
 import { PACKAGES, SECTIONS, findPackage } from './catalog.js';
-import { buildInvoice, isValidEmail, sendToN8n } from './invoice.js';
+import { buildInvoice, isValidEmail } from './invoice.js';
+import { sendToN8n } from './n8n.js';
+import { proposalEmail, requestReceivedEmail } from './correos.js';
+import { createNotifier, maskEmail, sendWithRetry } from './notifier.js';
+import { config } from '../config.js';
 
 const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // `onActivity(caseId, origen)`: aviso opcional cuando el cliente escribe o envía una solicitud
 // (lo usa el asistente para preparar su propuesta en segundo plano). Nunca bloquea al cliente.
-export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActivity = null }) {
+//
+// Correos al cliente (por n8n): `sendEmail` entrega la confirmación de la solicitud y la propuesta;
+// `sendInvoice`, el comprobante de compra. Por omisión ambos usan el webhook de N8N_WEBHOOK_URL.
+export function createPortal({
+  engine, storage, sendEmail = sendToN8n, sendInvoice = sendEmail, onActivity = null,
+  publicUrl = null, retryDelayMs = 4000, logger = console,
+}) {
+  const mailer = createNotifier({ storage, send: sendEmail, retryDelayMs, logger });
+  const siteUrl = () => publicUrl ?? config.publicUrl;
+  // Un problema con los correos nunca deshace ni rompe lo que hizo el cliente o el equipo.
+  const safely = (label, fn) => fn().catch((err) => {
+    logger.error?.(`[correos] ${label}: ${err.message}`);
+    return null;
+  });
   const notify = (caseId, origin) => {
     if (!onActivity) return;
     try {
@@ -65,7 +82,8 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
     return event;
   }
 
-  function caseView(state, events, invoices = []) {
+  function caseView(state, events, invoices = [], notices = []) {
+    const copy = notices.find((n) => n.kind === 'solicitud');
     const pkg = findPackage(state.package_id);
     const viewed = [...new Set(state.views.map((v) => v.section))];
     return {
@@ -89,6 +107,8 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       invoice: invoices[0]
         ? { invoice_number: invoices[0].invoice_number, status: invoices[0].status, email: maskEmail(invoices[0].email), sent_at: invoices[0].sent_at }
         : null,
+      // Copia de la solicitud por correo (solo el estado; los motivos internos no se muestran al cliente).
+      email_copy: copy && copy.email ? { status: copy.status, email: maskEmail(copy.email), sent_at: copy.sent_at } : null,
       event_count: events.length,
     };
   }
@@ -104,6 +124,117 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
     const rules = evaluateRules(state, now, { clientDelays: delays });
     if (!rules.actions[action]?.allowed) throw new EngineError('El envío está bloqueado por las preferencias del cliente o la política de contacto. Revisa la recomendación vigente.', 409, 'CONTACT_BLOCKED');
     return { events, state };
+  }
+
+  // Vista del cliente con el estado de sus correos y comprobantes.
+  async function fullView(caseId, events = null) {
+    const evs = events ?? await storage.getCaseEvents(caseId);
+    const [invoices, notices] = await Promise.all([
+      storage.listInvoices({ case_id: caseId }),
+      storage.listNotifications({ case_id: caseId }),
+    ]);
+    return caseView(buildCaseState(caseId, evs), evs, invoices, notices);
+  }
+
+  // Los correos automáticos respetan lo que pidió el cliente: R2 (no contactar), R3 (fecha mínima)
+  // y las esperas que pidió por mensaje. No aplican R1 (el comprobante sale justo al cerrar la compra)
+  // ni R4 (la espera de 24 h es para seguimientos comerciales, no para acuses ni comprobantes).
+  // Devuelve el motivo del bloqueo o null.
+  async function emailBlock(caseId, state) {
+    const now = await liveNow();
+    const latest = (await storage.latestDecisions())[caseId];
+    const delays = activeClientDelays(state, latest?.detail?.interpretations ?? {});
+    const block = evaluateRules(state, now, { clientDelays: delays }).restrictions
+      .find((r) => ['R2', 'R3', 'CLIENTE'].includes(r.rule));
+    return block ? block.message : null;
+  }
+
+  // El portal es público: para que nadie lo use para llenar de correos la bandeja de otra persona,
+  // cada dirección recibe como máximo ACK_LIMIT acuses por hora.
+  const ACK_LIMIT = 3;
+  const acks = new Map();
+  function ackAllowed(email) {
+    const key = String(email).trim().toLowerCase();
+    const hourAgo = Date.now() - 3600000;
+    const recent = (acks.get(key) ?? []).filter((t) => t > hourAgo);
+    if (recent.length >= ACK_LIMIT) return false;
+    recent.push(Date.now());
+    acks.set(key, recent);
+    if (acks.size > 5000) acks.clear();
+    return true;
+  }
+
+  async function queueRequestEmail(caseId, customer, state) {
+    const request = state.request ?? {};
+    const payload = requestReceivedEmail({ caseId, customer, request, to: request.email, publicUrl: siteUrl() });
+    let skip = !request.email ? 'El cliente no dejó correo en su solicitud.' : await emailBlock(caseId, state);
+    if (!skip && !ackAllowed(request.email)) skip = `Límite de ${ACK_LIMIT} acuses por hora para este correo (protección contra abusos).`;
+    return mailer.queue({ key: payload.id, kind: 'solicitud', caseId, customerId: customer.customer_id, payload, skip });
+  }
+
+  async function queueProposalEmail(caseId, state) {
+    const customer = state.customer_id ? await storage.getCustomer(state.customer_id) : null;
+    const payload = proposalEmail({
+      caseId,
+      customer,
+      request: state.request,
+      proposal: state.proposal,
+      pkg: findPackage(state.package_id),
+      amount: state.amount_mxn,
+      to: state.request?.email,
+      publicUrl: siteUrl(),
+    });
+    const skip = !state.request?.email ? 'El cliente no dejó correo en su solicitud.' : await emailBlock(caseId, state);
+    return mailer.queue({ key: payload.id, kind: 'propuesta', caseId, customerId: state.customer_id, payload, skip });
+  }
+
+  // Envía un comprobante ya registrado y guarda el resultado. `retries`: reintentos ante fallas pasajeras.
+  async function deliverInvoice(saved, invoice, { retries = 0 } = {}) {
+    const result = await sendWithRetry(sendInvoice, invoice, { retries, delayMs: retryDelayMs });
+    await storage.updateInvoice(saved.id, {
+      status: result.status,
+      error: result.error,
+      sent_at: result.status === 'sent' ? new Date().toISOString() : null,
+    });
+    if (result.status === 'failed') logger.error?.(`[correos] comprobante ${invoice.invoice_number} a ${maskEmail(invoice.email)}: ${result.error}`);
+    return result;
+  }
+
+  function invoiceFor(caseId, customer, state, email) {
+    return buildInvoice({
+      caseId,
+      customer,
+      request: state.request,
+      pkg: findPackage(state.package_id),
+      amount: state.amount_mxn,
+      email,
+      issuedAt: state.closed_at,
+      publicUrl: siteUrl(),
+    });
+  }
+
+  // Al comprar: el comprobante se manda solo al correo de la solicitud (en segundo plano: la compra
+  // nunca espera a n8n). Sin correo, o si el cliente pidió no ser contactado, se queda en el portal
+  // y el cliente lo pide con un clic.
+  async function autoInvoice(caseId, customer) {
+    const events = await storage.getCaseEvents(caseId);
+    const state = buildCaseState(caseId, events);
+    const email = state.request?.email;
+    if (!email || !isValidEmail(email)) return null;
+    const block = await emailBlock(caseId, state);
+    const invoice = invoiceFor(caseId, customer, state, email);
+    const saved = await storage.saveInvoice({
+      invoice_number: invoice.invoice_number,
+      case_id: caseId,
+      customer_id: customer.customer_id,
+      email: invoice.email,
+      amount_mxn: invoice.total_mxn,
+      status: block ? 'skipped' : 'pending',
+      error: block,
+      detail: { subject: invoice.subject, concept: invoice.concept, origin: 'automatico' },
+    });
+    if (!block) mailer.background(() => deliverInvoice(saved, invoice, { retries: 1 }));
+    return saved;
   }
 
   async function nextCaseId() {
@@ -155,7 +286,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       const quotes = [];
       for (const id of caseIds) {
         const events = await storage.getCaseEvents(id);
-        quotes.push(caseView(buildCaseState(id, events), events, await storage.listInvoices({ case_id: id })));
+        quotes.push(await fullView(id, events));
       }
       return {
         customer: { customer_id: c.customer_id, name: c.name, contact_name: c.contact_name, segment: c.segment, city: c.city },
@@ -197,7 +328,9 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       await emit(caseId, 'case.opened', { status: 'open', proposal_amount_mxn: null, customer_id: customerId, proposal_status: 'pending', request }, 0);
       notify(caseId, 'solicitud');
       const events = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, events), events);
+      // Acuse por correo con el resumen (en segundo plano; el cliente no espera a n8n).
+      await safely('acuse de solicitud', () => queueRequestEmail(caseId, customer, buildCaseState(caseId, events)));
+      return fullView(caseId, events);
     },
 
     async sendProposal(caseId, input = {}) {
@@ -209,6 +342,8 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
         const { events, state } = await writableCase(caseId);
         if (!state.proposal_pending) throw new EngineError('Esta propuesta ya fue enviada.', 409, 'ALREADY_SENT');
         await emit(caseId, 'proposal.sent', { package_id: pkg.package_id, proposal_amount_mxn: amount, title, notes: clean(input.notes, 1500) }, events.length);
+        // La propuesta también va al correo del cliente (las reglas ya permitieron publicarla).
+        await safely('propuesta', async () => queueProposalEmail(caseId, buildCaseState(caseId, await storage.getCaseEvents(caseId))));
         return engine.getCase(caseId);
       });
     },
@@ -258,8 +393,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       if (!pkg) throw new EngineError('Ese paquete no existe.');
       const caseId = await nextCaseId();
       await emit(caseId, 'case.opened', { status: 'open', proposal_amount_mxn: pkg.price_mxn, customer_id: customerId, package_id: pkg.package_id }, 0);
-      const events = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, events), events);
+      return fullView(caseId);
     },
 
     async viewSection(customerId, caseId, section) {
@@ -267,10 +401,9 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       if (!SECTIONS.some((s) => s.id === section)) throw new EngineError('Sección desconocida.');
       const { events, state } = await caseOf(caseId, customerId);
       if (state.proposal_pending) throw new EngineError('La propuesta aún está en preparación.', 409, 'PROPOSAL_PENDING');
-      if (state.status === 'closed') return caseView(state, events);
+      if (state.status === 'closed') return fullView(caseId, events);
       await emit(caseId, 'proposal.viewed', { section }, events.length);
-      const after = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, after), after);
+      return fullView(caseId);
     },
 
     async sendMessage(customerId, caseId, message) {
@@ -281,8 +414,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       if (state.status === 'closed') throw new EngineError('Esta cotización ya está cerrada.', 409, 'CLOSED');
       await emit(caseId, 'message.received', { message: text }, events.length);
       notify(caseId, 'mensaje');
-      const after = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, after), after);
+      return fullView(caseId);
     },
 
     // Preferencias de contacto del cliente: pausa hasta una fecha, no contactar, o volver a permitir.
@@ -303,22 +435,22 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
         throw new EngineError('Preferencia desconocida.');
       }
       await emit(caseId, 'constraint.updated', data, events.length);
-      const after = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, after), after);
+      return fullView(caseId);
     },
 
     async decide(customerId, caseId, decision) {
-      await requireCustomer(customerId);
+      const customer = await requireCustomer(customerId);
       if (!['accepted', 'rejected'].includes(decision)) throw new EngineError('Decisión inválida.');
       const { events, state } = await caseOf(caseId, customerId);
       if (state.status === 'closed') throw new EngineError('Esta cotización ya está cerrada.', 409, 'CLOSED');
       if (state.proposal_pending) throw new EngineError('Todavía no hay una propuesta para aceptar o rechazar.', 409, 'PROPOSAL_PENDING');
       await emit(caseId, 'case.closed', { status: decision }, events.length);
-      const after = await storage.getCaseEvents(caseId);
-      return caseView(buildCaseState(caseId, after), after);
+      if (decision === 'accepted') await safely('comprobante automático', () => autoInvoice(caseId, customer));
+      return fullView(caseId);
     },
 
-    // Después de comprar: el cliente da su correo y n8n le manda el comprobante por Gmail.
+    // Después de comprar, el cliente puede pedir (o volver a pedir) su comprobante a cualquier correo.
+    // Aquí sí espera la respuesta de n8n para decirle en pantalla si salió.
     async requestInvoice(customerId, caseId, email) {
       const customer = await requireCustomer(customerId);
       if (!isValidEmail(email)) throw new EngineError('Escribe un correo válido.');
@@ -330,14 +462,7 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
       if (previous.filter((i) => i.status === 'sent').length >= 3) {
         throw new EngineError('Ya enviamos este comprobante varias veces. Revisa tu bandeja de spam.', 429, 'TOO_MANY');
       }
-      const invoice = buildInvoice({
-        caseId,
-        customer,
-        pkg: findPackage(state.package_id),
-        amount: state.amount_mxn,
-        email,
-        issuedAt: state.closed_at,
-      });
+      const invoice = invoiceFor(caseId, customer, state, email);
       const saved = await storage.saveInvoice({
         invoice_number: invoice.invoice_number,
         case_id: caseId,
@@ -345,14 +470,9 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
         email: invoice.email,
         amount_mxn: invoice.total_mxn,
         status: 'pending',
-        detail: { subject: invoice.subject, concept: invoice.concept },
+        detail: { subject: invoice.subject, concept: invoice.concept, origin: 'cliente' },
       });
-      const result = await sendInvoice(invoice);
-      await storage.updateInvoice(saved.id, {
-        status: result.status,
-        error: result.error,
-        sent_at: result.status === 'sent' ? new Date().toISOString() : null,
-      });
+      const result = await deliverInvoice(saved, invoice);
       return {
         invoice_number: invoice.invoice_number,
         status: result.status,
@@ -368,13 +488,11 @@ export function createPortal({ engine, storage, sendInvoice = sendToN8n, onActiv
           total_mxn: invoice.total_mxn,
           issued_at: invoice.issued_at,
         },
-        case: caseView(state, events, await storage.listInvoices({ case_id: caseId })),
+        case: await fullView(caseId, events),
       };
     },
-  };
-}
 
-function maskEmail(email) {
-  const [user, domain] = String(email || '').split('@');
-  return user ? `${user.slice(0, 2)}***@${domain ?? ''}` : '';
+    // Espera los correos que se están enviando en segundo plano (pruebas y comandos de consola).
+    idle: () => mailer.idle(),
+  };
 }

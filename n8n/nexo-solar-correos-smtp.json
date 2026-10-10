@@ -1,0 +1,105 @@
+{
+  "name": "Nexo Solar - Correos al cliente (SMTP)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "nexo-solar-correos",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "0236d080-2a89-4535-9d4a-83b452afb2a3",
+      "name": "Webhook (Nexo Solar)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "0f01c7b8-7ccc-4c3e-8ad3-b9efe92e6524"
+    },
+    {
+      "parameters": {
+        "fromEmail": "Nexo Solar <TU_CORREO@gmail.com>",
+        "toEmail": "={{ $json.body.email }}",
+        "subject": "={{ $json.body.subject }}",
+        "emailFormat": "both",
+        "text": "={{ $json.body.text }}",
+        "html": "={{ $json.body.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c4075056-a5b2-4134-b2f9-2e7db8cd49bb",
+      "name": "Enviar por SMTP",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        280,
+        0
+      ],
+      "webhookId": "ad8a69c5-6406-42b0-bfdc-1e39e8c49b4b"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"event\": $('Webhook (Nexo Solar)').item.json.body.event, \"id\": $('Webhook (Nexo Solar)').item.json.body.id } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "f0d7772e-d5ff-4afb-8180-2c366748dcc4",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Correos al cliente de Nexo Solar\nEl backend manda aquí 3 tipos de correo, ya armados (destinatario, asunto y HTML):\n- **solicitud.recibida**: el cliente pidió su cotización\n- **propuesta.enviada**: el equipo publicó la propuesta\n- **compra.completada**: comprobante de compra\n\n**Configura 2 cosas:**\n1. Webhook → Credential: *Header Auth* con Name `x-nexo-secret` y Value = tu `N8N_WEBHOOK_SECRET`.\n2. Enviar por SMTP → credencial SMTP (Gmail: host smtp.gmail.com, puerto 465, SSL, usuario = tu Gmail, contraseña = contraseña de aplicación) y cambia `TU_CORREO@gmail.com` en From Email.\n\nLuego actívalo/publícalo y copia la **Production URL** en `N8N_WEBHOOK_URL`.",
+        "height": 340,
+        "width": 520
+      },
+      "id": "ca6222f6-cb4f-49de-bc0c-24d065e174aa",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -400
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (Nexo Solar)": {
+      "main": [
+        [
+          {
+            "node": "Enviar por SMTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar por SMTP": {
+      "main": [
+        [
+          {
+            "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

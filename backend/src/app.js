@@ -12,7 +12,8 @@ const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist');
 
 // `assistant`: opciones del asistente (proveedor, modo…), útiles en pruebas. El trabajo en segundo
 // plano del asistente solo arranca con app.locals.assistant.start() (lo hace server.js).
-export function createApp(engine, { adminPassword = '', sendInvoice, assistant: assistantOptions = {} } = {}) {
+// `sendEmail` / `sendInvoice`: entrega de correos al cliente (por omisión, el webhook de n8n). Útiles en pruebas.
+export function createApp(engine, { adminPassword = '', sendEmail, sendInvoice, assistant: assistantOptions = {} } = {}) {
   const app = express();
   app.set('trust proxy', 1); // detrás del proxy de Render u otra nube
   app.disable('x-powered-by');
@@ -25,12 +26,14 @@ export function createApp(engine, { adminPassword = '', sendInvoice, assistant: 
   const portal = createPortal({
     engine,
     storage,
+    ...(sendEmail ? { sendEmail } : {}),
     ...(sendInvoice ? { sendInvoice } : {}),
     onActivity: (caseId, origin) => hooks.onActivity?.(caseId, origin),
   });
   const assistant = createAssistant({ engine, storage, portal, ...assistantOptions });
   hooks.onActivity = assistant.onActivity;
   app.locals.assistant = assistant;
+  app.locals.portal = portal;
   app.use('/api', createApiRouter(engine, { portal, storage, adminPassword, assistant }));
   app.use('/api', apiErrorHandler);
 

@@ -43,6 +43,11 @@ function rowToInvoice(r) {
   return { ...r, id: Number(r.id), amount_mxn: Number(r.amount_mxn), sent_at: iso(r.sent_at), created_at: iso(r.created_at) };
 }
 
+function rowToNotification(r) {
+  const iso = (v) => (v instanceof Date ? v.toISOString() : v);
+  return { ...r, id: Number(r.id), attempts: Number(r.attempts), sent_at: iso(r.sent_at), created_at: iso(r.created_at) };
+}
+
 function rowToLesson(r) {
   return { ...r, created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at };
 }
@@ -274,6 +279,32 @@ export function createPostgresStorage(databaseUrl) {
       return rows.map(rowToInvoice);
     },
 
+    // Correos al cliente. ON CONFLICT: si la clave ya existe, no se registra ni se reenvía.
+    async saveNotification(n) {
+      const { rows } = await pool.query(
+        `INSERT INTO notifications (dedupe_key, kind, case_id, customer_id, email, subject, status, error, attempts, sent_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (dedupe_key) DO NOTHING RETURNING *`,
+        [n.dedupe_key, n.kind, n.case_id, n.customer_id ?? null, n.email ?? null, n.subject ?? null, n.status, n.error ?? null, n.attempts ?? 0, n.sent_at ?? null],
+      );
+      return rows[0] ? rowToNotification(rows[0]) : null;
+    },
+    async updateNotification(id, patch) {
+      const { rows } = await pool.query(
+        `UPDATE notifications SET status = COALESCE($2, status), error = $3, attempts = COALESCE($4, attempts), sent_at = COALESCE($5, sent_at)
+         WHERE id = $1 RETURNING *`,
+        [id, patch.status ?? null, patch.error ?? null, patch.attempts ?? null, patch.sent_at ?? null],
+      );
+      return rows[0] ? rowToNotification(rows[0]) : null;
+    },
+    async listNotifications({ case_id: caseId = null, customer_id: cid = null } = {}) {
+      const { rows } = await pool.query(
+        `SELECT * FROM notifications WHERE ($1::text IS NULL OR case_id = $1) AND ($2::text IS NULL OR customer_id = $2) ORDER BY id DESC`,
+        [caseId, cid],
+      );
+      return rows.map(rowToNotification);
+    },
+
     async saveLesson(l) {
       const { rows } = await pool.query(
         `INSERT INTO lessons (case_id, customer_id, outcome, closed_at, summary, lesson, source, model, tags, analysis)
@@ -356,7 +387,7 @@ export function createPostgresStorage(databaseUrl) {
     },
 
     async reset() {
-      await pool.query('TRUNCATE assistant_feedback, assistant_runs, lessons, invoices, customers, decisions, interpretations, events, ingest_batches, settings RESTART IDENTITY CASCADE');
+      await pool.query('TRUNCATE assistant_feedback, assistant_runs, lessons, notifications, invoices, customers, decisions, interpretations, events, ingest_batches, settings RESTART IDENTITY CASCADE');
     },
   };
 }

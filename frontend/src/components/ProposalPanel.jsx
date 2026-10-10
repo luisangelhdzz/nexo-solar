@@ -4,6 +4,43 @@ import { fmtMoney, fmtUtc } from '../format.js';
 import AssistantPanel from './AssistantPanel.jsx';
 
 const CHANNEL = { email: 'Correo', whatsapp: 'WhatsApp', phone: 'Llamada' };
+const MAIL_KIND = { solicitud: 'Acuse de la solicitud', propuesta: 'Propuesta' };
+const MAIL_STATUS = {
+  sent: ['Enviado', 'pill-ai'],
+  pending: ['Enviando', ''],
+  failed: ['Falló', 'pill-stop'],
+  skipped: ['No enviado', 'pill-fallback'],
+  not_configured: ['Sin n8n', 'pill-fallback'],
+};
+
+// Correos que recibió el cliente por n8n: acuse, propuesta y comprobante, con su estado y el motivo si no salió.
+function EmailLog({ detail }) {
+  const rows = [
+    ...(detail.notifications ?? []).map((n) => ({ ...n, key: `n${n.id}`, label: MAIL_KIND[n.kind] ?? n.kind })),
+    ...(detail.invoices ?? []).map((i) => ({ ...i, key: `i${i.id}`, label: `Comprobante ${i.invoice_number}` })),
+  ].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  if (!rows.length && !detail.state.request) return null;
+  return (
+    <div className="email-log" aria-label="Correos al cliente">
+      <h4>Correos al cliente</h4>
+      {!detail.email_delivery?.configured && <p className="muted small">n8n no está configurado (N8N_WEBHOOK_URL): los correos no salen y todo se ve en el portal.</p>}
+      {rows.length === 0 ? <p className="muted small">Todavía no se ha enviado ningún correo.</p> : (
+        <ul>
+          {rows.map((r) => {
+            const [label, cls] = MAIL_STATUS[r.status] ?? [r.status, ''];
+            return (
+              <li key={r.key}>
+                <span className={`pill ${cls}`}>{label}</span>
+                <span>{r.label}{r.email ? ` · ${r.email}` : ''} · {fmtUtc(r.sent_at ?? r.created_at)}</span>
+                {r.error && r.status !== 'sent' && <span className="muted small email-log-why">{r.error}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function ProposalPanel({ detail, onUpdate, busy }) {
   const { state, current } = detail;
@@ -44,6 +81,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
           <div><dt>Permiso de contacto</dt><dd>{state.contact_allowed ? 'Autorizado' : 'No autorizado'}{state.contact_not_before ? ` · a partir del ${fmtUtc(state.contact_not_before)}` : ''}</dd></div>
         </dl>
       </>}
+      <EmailLog detail={detail} />
       {error && <p className="proposal-error" role="alert">{error}</p>}
       {blocked && <p className="muted">El envío no está disponible ahora. Revisa las restricciones y el siguiente paso recomendado.</p>}
       {state.proposal_pending && <form className="proposal-form" onSubmit={(e) => { e.preventDefault(); run(() => api.sendProposal(detail.case_id, form)); }}>
@@ -52,6 +90,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
         <div className="proposal-grid"><label>Título de la propuesta<input required maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>Precio total con IVA · MXN<input type="number" min="1" max="100000000" required value={form.amount_mxn} onChange={(e) => setForm({ ...form, amount_mxn: e.target.value })} /></label></div>
         <label>Alcance y condiciones particulares<textarea rows={3} maxLength={1500} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Describe qué incluye la solución y qué debe confirmarse en la visita técnica." /></label>
         <button className="btn btn-primary" disabled={blocked || saving || busy}>{saving ? 'Publicando…' : 'Publicar propuesta en el portal'}</button>
+        {intake?.email && <p className="muted small">Al publicarla, también se envía por correo a {intake.email}{detail.email_delivery?.configured ? '' : ' (cuando n8n esté configurado)'}.</p>}
       </form>}
       {state.status !== 'closed' && <AssistantPanel detail={detail} disabled={saving || busy} onUseDraft={(text, runId) => { setMessage(text); setAssistantRunId(runId); }} />}
       {state.status !== 'closed' && <form className="proposal-form" onSubmit={(e) => { e.preventDefault(); run(() => api.reply(detail.case_id, { message, action: current?.recommendation?.action, ...(assistantRunId ? { assistant_run_id: assistantRunId } : {}) })); }}>
@@ -60,7 +99,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
         <div className="kit-buttons">
           <button className="btn btn-primary" disabled={blocked || saving || busy || !message.trim()}>{saving ? 'Enviando…' : 'Enviar mensaje al portal'}</button>
         </div>
-        <p className="muted small">El mensaje se entrega en el portal. El correo y WhatsApp son preferencias registradas para futuras integraciones.</p>
+        <p className="muted small">El mensaje se entrega en el portal. Por correo (n8n) solo salen el acuse de la solicitud, la propuesta y el comprobante de compra.</p>
       </form>}
     </section>
   );

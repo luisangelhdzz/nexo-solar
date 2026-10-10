@@ -34,5 +34,7 @@ app.listen(config.port, () => {
   console.log(`Interpretación: ${ai.mode === 'ai' ? `${ai.provider} (${ai.model})` : ai.note}`);
   console.log(`Asistente: ${ASSISTANT_MODE[app.locals.assistant.mode]}${ai.mode === 'ai' ? '' : ' · sin IA, usa plantillas'}`);
   console.log(`Consola protegida con contraseña: ${config.adminPassword ? 'sí' : 'no (define ADMIN_PASSWORD al desplegar)'}`);
-  console.log(`Envío de comprobantes por n8n: ${config.n8n.webhookUrl ? 'configurado' : 'no configurado'}`);
+  console.log(config.n8n.webhookUrl
+    ? `Correos al cliente por n8n: configurado (solicitud, propuesta y comprobante; enlaces a ${config.publicUrl})`
+    : 'Correos al cliente por n8n: no configurado (define N8N_WEBHOOK_URL; mientras tanto todo se ve en el portal)');
 });

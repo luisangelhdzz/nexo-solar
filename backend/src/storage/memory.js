@@ -15,6 +15,8 @@ export function createMemoryStorage() {
   let customers = new Map();
   let invoices = [];
   let invoiceSeq = 0;
+  let notifications = [];
+  let notificationSeq = 0;
   let lessons = new Map();
   let assistantRuns = [];
   let assistantRunSeq = 0;
@@ -159,6 +161,28 @@ export function createMemoryStorage() {
         .sort((a, b) => b.id - a.id);
     },
 
+    // Correos al cliente (solicitud recibida, propuesta lista). Una fila por dedupe_key:
+    // si la clave ya existe devuelve null y el correo no se vuelve a enviar.
+    async saveNotification(n) {
+      if (notifications.some((x) => x.dedupe_key === n.dedupe_key)) return null;
+      notificationSeq += 1;
+      const row = { attempts: 0, error: null, sent_at: null, ...n, id: notificationSeq, created_at: new Date().toISOString() };
+      notifications.push(row);
+      return { ...row };
+    },
+    async updateNotification(id, patch) {
+      const row = notifications.find((x) => x.id === id);
+      if (!row) return null;
+      for (const [k, v] of Object.entries(patch)) if (v !== undefined) row[k] = v;
+      return { ...row };
+    },
+    async listNotifications({ case_id: caseId = null, customer_id: cid = null } = {}) {
+      return notifications
+        .filter((x) => (!caseId || x.case_id === caseId) && (!cid || x.customer_id === cid))
+        .sort((a, b) => b.id - a.id)
+        .map((x) => ({ ...x }));
+    },
+
     // Lecciones de cotizaciones cerradas (aprendizaje).
     async saveLesson(lesson) {
       const row = { created_at: new Date().toISOString(), ...lessons.get(lesson.case_id), ...lesson };
@@ -223,6 +247,8 @@ export function createMemoryStorage() {
       customers = new Map();
       invoices = [];
       invoiceSeq = 0;
+      notifications = [];
+      notificationSeq = 0;
       events = new Map();
       seq = 0;
       interpretations = new Map();

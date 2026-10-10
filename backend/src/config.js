@@ -14,12 +14,22 @@ export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
 const AUTOPILOT_MODES = ['off', 'draft', 'auto'];
 const autopilot = (process.env.ASSISTANT_AUTOPILOT || 'draft').toLowerCase();
 
+// `npm test` corre cada archivo con NODE_TEST_CONTEXT. En las pruebas nunca se usan los servicios
+// reales de tu backend/.env (Gemini, n8n): así no se gastan cuotas ni salen correos de verdad.
+// Cada prueba configura su propio servidor simulado.
+export const TESTING = Boolean(process.env.NODE_TEST_CONTEXT);
+
+const port = num('PORT', 3001);
+
 export const config = {
-  port: num('PORT', 3001),
+  port,
   databaseUrl: process.env.DATABASE_URL || '',
+  // Dirección pública del sitio, para los enlaces de los correos. En Render se toma sola
+  // (RENDER_EXTERNAL_URL); en tu Mac queda http://localhost:3001.
+  publicUrl: (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`).replace(/\/+$/, ''),
   ai: {
     // gemini | anthropic | openai | heuristic
-    provider: (process.env.AI_PROVIDER || 'heuristic').toLowerCase(),
+    provider: TESTING ? 'heuristic' : (process.env.AI_PROVIDER || 'heuristic').toLowerCase(),
     timeoutMs: num('AI_TIMEOUT_MS', 20000),
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -52,9 +62,11 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD || '',
   // Carga clientes y cotizaciones de demostración al arrancar si la base está vacía.
   seedDemo: process.env.SEED_DEMO === 'true',
+  // Correos al cliente (solicitud recibida, propuesta lista y comprobante de compra) por un webhook de n8n.
   n8n: {
-    webhookUrl: process.env.N8N_WEBHOOK_URL || '',
-    secret: process.env.N8N_WEBHOOK_SECRET || '',
+    webhookUrl: TESTING ? '' : (process.env.N8N_WEBHOOK_URL || '').trim(),
+    // Va en el encabezado x-nexo-secret; en n8n es el valor de la credencial Header Auth del Webhook.
+    secret: (process.env.N8N_WEBHOOK_SECRET || '').trim(),
     timeoutMs: num('N8N_TIMEOUT_MS', 10000),
   },
   policy: {

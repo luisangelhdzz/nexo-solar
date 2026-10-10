@@ -12,6 +12,7 @@
     "ai:check": "npm run ai:check --prefix backend",
     "ai:eval": "npm run ai:eval --prefix backend --",
     "ai:diagnose": "npm run ai:diagnose --prefix backend",
+    "n8n:check": "npm run n8n:check --prefix backend --",
     "evaluate:kit": "npm run evaluate --prefix backend -- --manifest ../kit/manifest.json --events ../kit/events.jsonl --events ../kit/updates.jsonl --out ../recomendaciones.json"
   }
 }

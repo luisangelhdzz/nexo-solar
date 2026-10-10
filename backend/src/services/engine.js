@@ -12,6 +12,7 @@ import { generateLesson } from '../ai/lessons.js';
 import { buildStages, STAGES, STAGE_LABEL } from '../domain/stages.js';
 import { analyzeOutcome } from '../domain/outcome.js';
 import { computeLearning, pickLessons } from '../domain/learning.js';
+import { config } from '../config.js';
 
 export class EngineError extends Error {
   constructor(message, status = 400, code = 'BAD_REQUEST') {
@@ -450,6 +451,9 @@ export function createEngine({ storage, provider = activeProvider(), policy = {}
       clock: clockInfo,
       customer,
       invoices: (await storage.listInvoices({ case_id: caseId })).map(maskInvoice),
+      // Correos al cliente por n8n (solicitud recibida, propuesta lista) con su estado.
+      notifications: (await storage.listNotifications({ case_id: caseId })).map(maskInvoice),
+      email_delivery: { configured: Boolean(config.n8n.webhookUrl) },
       current,
       previous,
       history: history.map((h) => ({

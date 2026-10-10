@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 CREATE INDEX IF NOT EXISTS invoices_case_idx ON invoices (case_id);
 
+-- Correos al cliente enviados por n8n (solicitud recibida, propuesta lista).
+-- dedupe_key evita que el mismo correo salga dos veces (por ejemplo, "propuesta:NS-1016").
+CREATE TABLE IF NOT EXISTS notifications (
+  id           BIGSERIAL PRIMARY KEY,
+  dedupe_key   TEXT NOT NULL UNIQUE,
+  kind         TEXT NOT NULL,
+  case_id      TEXT NOT NULL,
+  customer_id  TEXT,
+  email        TEXT,
+  subject      TEXT,
+  status       TEXT NOT NULL,
+  error        TEXT,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  sent_at      TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notifications_case_idx ON notifications (case_id);
+
 -- Aprendizaje: análisis y lección de cada cotización cerrada.
 CREATE TABLE IF NOT EXISTS lessons (
   case_id      TEXT PRIMARY KEY,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { portalApi, portalCustomer } from '../api.js';
 import { BotonCotizaciones, HomePage, MenuBar, Pie, SECCION_DE_RUTA, useSeccionActiva } from './Storefront.jsx';
 import { dateMx, dayMx, go, money, parseHash } from './util.js';
@@ -135,17 +135,32 @@ function QuoteHome({ me, onOpen, onSwitch }) {
   );
 }
 
-function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
+// Mientras un correo se está enviando, se consulta cada 2.5 s (hasta ~30 s) para mostrar si ya salió.
+function usePendingMailRefresh(quote, onRefresh) {
+  const tries = useRef(0);
+  const pending = quote.invoice?.status === 'pending' || quote.email_copy?.status === 'pending';
+  useEffect(() => {
+    if (!pending) { tries.current = 0; return undefined; }
+    if (tries.current >= 12) return undefined;
+    const t = setTimeout(() => { tries.current += 1; onRefresh?.(); }, 2500);
+    return () => clearTimeout(t);
+  }, [pending, quote, onRefresh]);
+}
+
+function Quote({ customerId, quote, catalog, now, onUpdate, onRefresh, onBack, onError }) {
   const [openSection, setOpenSection] = useState(null);
   const [message, setMessage] = useState('');
   const [pauseDate, setPauseDate] = useState('');
   const [confirm, setConfirm] = useState(null);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(quote.request?.email ?? '');
   const [invoice, setInvoice] = useState(null);
+  const [otherEmail, setOtherEmail] = useState(false);
   const [sending, setSending] = useState(false);
   const pkg = quote.package;
   const st = statusOf(quote);
   const closed = quote.status === 'closed';
+  const autoInvoice = quote.invoice?.status;
+  usePendingMailRefresh(quote, onRefresh);
 
   const act = async (fn) => {
     setSending(true);
@@ -185,6 +200,8 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
         <h2>Tu proyecto</h2><p>{quote.request.goal}</p>
         <p className="p-muted">{quote.request.city} · {quote.request.roof}</p>
         <p>{quote.request.bill_amount_mxn ? `${money(quote.request.bill_amount_mxn)} por recibo ${quote.request.bill_period === 'bimonthly' ? 'bimestral' : 'mensual'}` : 'Gasto de electricidad por confirmar'}</p>
+        {quote.email_copy?.status === 'sent' && <p className="p-muted p-mail-note">Te enviamos una copia de tu solicitud a {quote.email_copy.email}.</p>}
+        {quote.email_copy?.status === 'pending' && <p className="p-muted p-mail-note" role="status">Enviando una copia de tu solicitud a {quote.email_copy.email}…</p>}
       </section>}
       {!quote.proposal_pending && <section className="p-card">
         <h2>Revisa tu propuesta</h2>
@@ -301,12 +318,19 @@ function Quote({ customerId, quote, catalog, now, onUpdate, onBack, onError }) {
         <section className="p-card p-done">
           <h2>¡Gracias por tu compra!</h2>
           <p>Un asesor te contactará para agendar la instalación.</p>
-          {quote.invoice && !invoice && (
-            <p className="p-muted">
-              Comprobante {quote.invoice.invoice_number}: {quote.invoice.status === 'sent' ? `enviado a ${quote.invoice.email}` : 'generado'}.
+          {!invoice && autoInvoice === 'sent' && (
+            <p className="p-mail-note p-mail-ok" role="status">
+              Te enviamos tu comprobante {quote.invoice.invoice_number} a {quote.invoice.email}.{' '}
+              {!otherEmail && <button type="button" className="p-link" onClick={() => { setOtherEmail(true); setEmail(''); }}>Enviarlo a otro correo</button>}
             </p>
           )}
-          {!invoice && (
+          {!invoice && autoInvoice === 'pending' && (
+            <p className="p-mail-note" role="status">Estamos enviando tu comprobante a {quote.invoice.email}…</p>
+          )}
+          {!invoice && autoInvoice === 'failed' && (
+            <p className="p-muted">No pudimos enviar tu comprobante a {quote.invoice.email}. Puedes intentarlo de nuevo.</p>
+          )}
+          {!invoice && (otherEmail || !['sent', 'pending'].includes(autoInvoice)) && (
             <form
               className="p-form"
               onSubmit={async (e) => {
@@ -438,13 +462,14 @@ export default function PortalApp() {
   };
 
   const quote = route.page === 'cotizacion' ? me?.quotes.find((q) => q.case_id === route.arg) : null;
+  const refresh = useCallback(() => load(customerId), [load, customerId]);
 
   let page;
   if (inQuoteSection) {
     if (route.page === 'cotizar') page = <RequestForm customer={me?.customer} onSubmit={submitRequest} busy={busy} />;
     else if (!customerId) page = <PickCompany onPicked={pick} onError={showError} />;
     else if (!me) page = <main className="p-main"><p className="p-muted">Cargando tus cotizaciones…</p></main>;
-    else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onBack={() => go('mis-cotizaciones')} onError={showError} />;
+    else if (quote) page = <Quote customerId={customerId} quote={quote} catalog={catalog} now={me.now} onUpdate={updateQuote} onRefresh={refresh} onBack={() => go('mis-cotizaciones')} onError={showError} />;
     else page = <QuoteHome me={me} onOpen={openQuote} onSwitch={switchCompany} />;
   } else {
     page = <HomePage />;

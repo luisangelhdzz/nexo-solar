@@ -174,7 +174,7 @@ export default function Customers({ customers, selectedId, detail, onSelect, onS
                   <ul className="plain">
                     {detail.invoices.map((i) => (
                       <li key={i.id}>
-                        {i.invoice_number} para {i.email}: {i.status === 'sent' ? 'enviado' : i.status === 'not_configured' ? 'mostrado en pantalla (n8n sin configurar)' : i.status === 'failed' ? `falló (${i.error})` : 'pendiente'}
+                        {i.invoice_number} para {i.email}: {i.status === 'sent' ? 'enviado' : i.status === 'not_configured' ? 'mostrado en pantalla (n8n sin configurar)' : i.status === 'failed' ? `falló (${i.error})` : i.status === 'skipped' ? 'no enviado automáticamente (preferencia del cliente)' : 'pendiente'}
                       </li>
                     ))}
                   </ul>

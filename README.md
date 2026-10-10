@@ -27,7 +27,7 @@ Un solo servidor sirve dos pantallas:
 - **Node.js 18.17 o superior.** Se recomienda la versión 20 LTS; en macOS se instala desde nodejs.org o con `brew install node@20`.
 - **PostgreSQL (opcional).** Sin él todo funciona en memoria.
 - **Clave de Gemini (opcional).** Se crea en Google AI Studio; guía paso a paso en [docs/GEMINI.md](docs/GEMINI.md). Sin clave se usan el clasificador de respaldo y plantillas, sin red.
-- **n8n con Gmail (opcional).** Sirve para mandar el comprobante de compra por correo.
+- **n8n (opcional).** Manda al cliente por correo el acuse de su solicitud, su propuesta y el comprobante de compra ([guía](n8n/README.md)).
 
 ## 2. Instalación y ejecución local
 
@@ -69,7 +69,8 @@ Copia `backend/.env.example` como `backend/.env`. **Nunca subas el `.env` al rep
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Cualquier API compatible con OpenAI: OpenAI, Groq u Ollama | — |
 | `ASSISTANT_AUTOPILOT` | Asistente: `off` (solo bajo pedido), `draft` (prepara borradores solo) o `auto` (envía solo lo que pasa todas las validaciones) | `draft` |
 | `ASSISTANT_REVIEW_MINUTES`, `ASSISTANT_TIMEOUT_MS` | Cada cuánto revisa cotizaciones pendientes y tiempo máximo de la IA | `5`, `60000` |
-| `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET` | Envío del comprobante por n8n + Gmail | vacías |
+| `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET` | Correos al cliente por n8n: acuse de la solicitud, propuesta y comprobante ([guía](n8n/README.md)) | vacías |
+| `PUBLIC_URL` | Dirección para los enlaces de los correos. En Render se toma sola | `http://localhost:3001` |
 | `FOLLOW_UP_HOURS` | Horas sin actividad antes de proponer un seguimiento | `48` |
 | `HIGH_AMOUNT_MXN` | Monto a partir del cual se pide revisión humana | `500000` |
 | `MAX_UNANSWERED_FOLLOWUPS` | Seguimientos sin respuesta antes de dejar de insistir | `2` |
@@ -156,13 +157,13 @@ Las reglas R1–R6 nunca se aprenden ni cambian.
 Empresa ficticia, sin cobros reales. Desde el celular:
 
 1. **Entrar:** elige una empresa de la lista o registra la tuya.
-2. **Solicitar una cotización:** formulario de negocio, contacto, gasto de luz, instalación y preferencias. Genera `case.opened` con `proposal_status=pending`, sin monto ni propuesta enviada. El equipo selecciona una solución de referencia interna y publica el precio y alcance desde el dashboard; `proposal.sent` inicia la etapa Enviada.
+2. **Solicitar una cotización:** formulario de negocio, contacto, gasto de luz, instalación y preferencias. Genera `case.opened` con `proposal_status=pending`, sin monto ni propuesta enviada, y el cliente recibe por correo el acuse con el resumen. El equipo selecciona una solución de referencia interna y publica el precio y alcance desde el dashboard; `proposal.sent` inicia la etapa Enviada y la propuesta también llega al correo del cliente.
 3. **Revisar secciones:** precio, instalación, garantía, financiamiento y entrega. Cada apertura genera `proposal.viewed`.
 4. **Escribir una duda:** genera `message.received`.
 5. **Elegir cómo quiere que lo contacten:** "No me contacten antes del…" o "Prefiero que no me contacten". Genera `constraint.updated`.
-6. **Aceptar o rechazar:** genera `case.closed`. Al aceptar, el portal pide un **correo** y n8n envía el comprobante por Gmail.
+6. **Aceptar o rechazar:** genera `case.closed`. Al aceptar, el comprobante llega solo al correo de la solicitud; el cliente también puede pedirlo a otro correo.
 
-El portal **nunca muestra la recomendación interna**. Si n8n no está configurado, el comprobante se muestra en pantalla. Configuración de n8n: [`n8n/README.md`](n8n/README.md).
+El portal **nunca muestra la recomendación interna**. Los correos automáticos respetan R2 y R3: si el cliente pidió no ser contactado o esperar hasta una fecha, no salen. Si n8n no está configurado, todo se ve en el portal y el comprobante se muestra en pantalla. Configuración de n8n: [`n8n/README.md`](n8n/README.md).
 
 ## 7. Reloj: hora del manifest o en vivo
 
@@ -180,7 +181,7 @@ En vivo puedes **adelantar el reloj** (+6 h, +24 h, +48 h) para mostrar cómo ve
 3. Llena en el panel:
    - **`ADMIN_PASSWORD`** (obligatoria).
    - La clave de IA, si usarán una.
-   - `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_SECRET`, si usarán n8n.
+   - `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_SECRET`, si usarán correos con n8n ([guía](n8n/README.md)).
 4. Al terminar quedan dos direcciones: `https://TU-SERVICIO.onrender.com` (consola, pide contraseña) y `.../portal` (público).
 
 **Detalles del plan gratuito:**
@@ -300,7 +301,7 @@ Si algo falla, publica `wait` con revisión humana.
 npm test
 ```
 
-Son más de 120 pruebas sin red, más una con PostgreSQL (`TEST_DATABASE_URL`). Cubren:
+Son más de 130 pruebas sin red, más dos con PostgreSQL (`TEST_DATABASE_URL`). Cubren:
 
 - Reglas R1–R4 y validación de eventos.
 - Kit P01–P06 y el cambio de P06.
@@ -308,7 +309,7 @@ Son más de 120 pruebas sin red, más una con PostgreSQL (`TEST_DATABASE_URL`). 
 - El guardián y el respaldo de la IA.
 - Inacción por historial: buen cliente, pregunta pendiente, ventana vencida, ficha del equipo, que nunca rompa reglas.
 - El portal completo: venta, comprobante y dueño de cada cotización.
-- El envío a un webhook de n8n simulado.
+- Correos por n8n contra un webhook simulado: acuse, propuesta y comprobante, R2/R3, reintento, secreto incorrecto y escape de HTML. `npm test` nunca usa el n8n ni la IA de tu `.env`.
 - La contraseña de la consola.
 - Etapas, análisis de compras y pérdidas, lecciones (IA y plantilla), tiempos aprendidos y versiones.
 - Que con la hora del manifest el aprendizaje no cambie el resultado oficial del kit.
@@ -338,7 +339,7 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
    - Pide una cotización y abre el precio y la garantía.
    - En la consola: **Esperar**, "Lo correcto es no intervenir", con la barra de su ventana de paciencia.
    - Adelanta el reloj +48 h: sigue en espera. +24 h más: pasa a un seguimiento amable.
-4. **Compra y comprobante (50 s).** Desde el celular: Aceptar y comprar → correo → llega el comprobante por Gmail. En la consola: el caso pasa a `no_action` (R1) y el cliente suma una compra.
+4. **Compra y comprobante (50 s).** Desde el celular: Aceptar y comprar → el comprobante llega solo al correo de la solicitud. En la consola: el caso pasa a `no_action` (R1) y el cliente suma una compra.
 5. **Asistente con Gemini (opcional, 40 s).** El cliente escribe "¿El precio incluye la instalación?". En la consola, el caso muestra la propuesta del asistente: necesidad, acción autorizada por el motor, borrador validado y sus chequeos. **Usar este borrador** → enviar.
 6. **Aprendizaje (40 s).** Pestaña Aprendizaje: embudo, qué separa compras de pérdidas, tiempos ajustados con datos y la lección del caso que se acaba de cerrar (la versión sube a v2). En Casos, abre NS-1006 para ver "Por qué no se compró".
 7. **Cierre (20 s).** Exportar JSON y `npm test`.
@@ -360,18 +361,18 @@ kit/                       archivos públicos del reto
 recomendaciones.json       salida oficial de los casos públicos
 NOTA_TECNICA.md            nota técnica de una página
 render.yaml                despliegue en Render (web + PostgreSQL)
-n8n/                       flujo importable Webhook → Gmail y su guía
+n8n/                       flujos importables Webhook → Gmail o SMTP y su guía
 backend/
   src/domain/              validación, estado, reglas, política, guardián, perfil del cliente,
                            etapas (stages.js), por qué se compró o no (outcome.js), aprendizaje (learning.js)
   src/ai/                  prompt, proveedores (Gemini / Claude / compatible con OpenAI), respaldo, lecciones,
                            asistente: conocimiento.js, ejemplos.js, evaluacion.js, validación de borradores
   src/services/assistant.js  ciclo del asistente: propone → valida → ejecuta lo autorizado → registra
-  src/portal/              catálogo, servicio del portal, datos demo, comprobante y envío a n8n
+  src/portal/              catálogo, servicio del portal, datos demo, correos (correos.js), comprobante y envío a n8n
   src/storage/             memoria y PostgreSQL (misma interfaz)
   src/services/engine.js   reloj, evaluación, historial, clientes, resumen
   src/routes/api.js        API Express (consola protegida + portal público)
-  src/cli/                 evaluación del kit, npm run ai:check y npm run ai:eval
+  src/cli/                 evaluación del kit, npm run ai:check, npm run ai:eval y npm run n8n:check
   test/                    pruebas (node:test)
 frontend/
   src/components/          consola: resumen, casos, clientes, reloj, carga

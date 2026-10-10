@@ -194,6 +194,11 @@
 .app .request-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }
 .app .request-facts dt { color: var(--ink-faint); font-size: .8rem; margin-bottom: .3rem; }
 .app .request-facts dd { margin: 0; overflow-wrap: anywhere; }
+.app .email-log { margin: 0 0 1.2rem; padding: .8rem 1rem; border: 1px solid var(--line, rgba(0,0,0,.12)); border-radius: 10px; }
+.app .email-log h4 { margin: 0 0 .5rem; font-size: .9rem; }
+.app .email-log ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .45rem; }
+.app .email-log li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-size: .88rem; }
+.app .email-log .email-log-why { flex-basis: 100%; padding-left: .2rem; }
 .app .proposal-form { display: flex; flex-direction: column; gap: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; }
 .app .proposal-form label { display: flex; flex-direction: column; gap: .4rem; font-size: .86rem; }
 .app .proposal-form input, .app .proposal-form select, .app .proposal-form textarea { padding: .7rem; width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; font: inherit; }
