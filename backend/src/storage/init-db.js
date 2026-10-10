@@ -9,9 +9,9 @@ if (!config.databaseUrl) {
 const storage = createPostgresStorage(config.databaseUrl);
 try {
   await storage.init();
-  console.log('Tablas listas en', config.databaseUrl.replace(/:[^:@/]+@/, ':****@'));
+  console.log('Conexión PostgreSQL verificada. Tablas listas.');
 } catch (e) {
-  console.error('No se pudo inicializar la base de datos:', e.message);
+  console.error('No se pudo inicializar la base de datos. Código:', e.code || e.name);
   process.exitCode = 1;
 } finally {
   await storage.close();

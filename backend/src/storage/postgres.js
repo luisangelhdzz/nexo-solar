@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { sameEventContent } from '../domain/util.js';
+import { postgresConnectionOptions } from './ssl.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,13 +47,8 @@ function rowToLesson(r) {
   return { ...r, created_at: r.created_at instanceof Date ? r.created_at.toISOString() : r.created_at };
 }
 
-// Las bases en la nube (Render, Neon, Supabase) suelen exigir SSL: DATABASE_SSL=true.
-function sslOption() {
-  return process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined;
-}
-
 export function createPostgresStorage(databaseUrl) {
-  const pool = new pg.Pool({ connectionString: databaseUrl, max: 5, ssl: sslOption() });
+  const pool = new pg.Pool({ ...postgresConnectionOptions(databaseUrl), max: 5, connectionTimeoutMillis: 10000 });
 
   return {
     kind: 'postgres',
