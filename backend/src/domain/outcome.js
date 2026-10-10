@@ -149,10 +149,14 @@ export function analyzeOutcome({ state, interpretations = {}, stages, decisions 
     summary = `Se perdió tras ${decisionHours !== null ? fmtH(decisionHours) : 'un tiempo desconocido'} (${state.closed_status === 'rejected' ? 'rechazada' : 'cancelada'}).`;
     if (neg.length) summary += ` Lo que pesó: ${neg.map((f) => f.label.toLowerCase()).join(', ')}.`;
     if (pos.length) summary += ` Aun así hubo: ${pos.map((f) => f.label.toLowerCase()).join(', ')}.`;
-    if (!neg.length) summary += ' No hay una causa clara en el historial; conviene preguntar al cliente.';
+    if (!neg.length && !state.closed_reason) summary += ' No hay una causa clara en el historial; conviene preguntar al cliente.';
   }
 
+  if (state.closed_reason) summary += ` Motivo registrado por el equipo: ${state.closed_reason}.`;
+
   return {
+    reported_reason: state.closed_reason ?? null,
+    reported_notes: state.closed_notes ?? null,
     case_id: state.case_id,
     customer_id: state.customer_id ?? null,
     outcome: won ? 'won' : 'lost',

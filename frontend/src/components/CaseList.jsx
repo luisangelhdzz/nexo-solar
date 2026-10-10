@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ACTION_LABEL, CLOSED_LABEL, RISK_LABEL, fmtMoney, valueText } from '../format.js';
 
 function shortTiming(rec) {
@@ -19,14 +20,19 @@ function ordered(cases) {
 }
 
 export default function CaseList({ cases, selected, onSelect }) {
+  const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const visible = cases.filter(c => (filter === 'all' || (filter === 'closed' ? c.status === 'closed' : c.status !== 'closed')) && `${c.case_id} ${c.customer_name || ''}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <nav className="caselist" aria-label="Casos">
       <div className="caselist-head">
-        <h2>Casos</h2>
+        <h2>Cotizaciones</h2>
         <span className="muted">{cases.length}</span>
       </div>
+      <div className="case-filters"><input aria-label="Buscar cotización" placeholder="Buscar cliente…" value={search} onChange={e => setSearch(e.target.value)} /><select aria-label="Estado de cotizaciones" value={filter} onChange={e => setFilter(e.target.value)}><option value="open">Abiertas</option><option value="closed">Cerradas</option><option value="all">Todas</option></select></div>
+      {!visible.length && <p className="muted">No hay cotizaciones con este filtro.</p>}
       <ul>
-        {ordered(cases).map((c) => {
+        {ordered(visible).map((c) => {
           const rec = c.recommendation;
           return (
             <li key={c.case_id}>

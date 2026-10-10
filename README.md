@@ -15,6 +15,9 @@ El sistema recibe los eventos de cada cotización: apertura, vistas, mensajes de
 
 Un solo servidor sirve dos pantallas:
 
+Para publicarlo en Render Free con HTTPS y la base existente de Tiger Data,
+consulta [la guía de despliegue](docs/RENDER.md).
+
 | Dirección | Para quién | Qué hace |
 |---|---|---|
 | `/` | Equipo comercial y jueces | Consola: resumen de inacción, casos, clientes, reglas, exportación JSON |
@@ -174,23 +177,24 @@ El portal **nunca muestra la recomendación interna**. Los correos automáticos 
 
 En vivo puedes **adelantar el reloj** (+6 h, +24 h, +48 h) para mostrar cómo vence la espera de un buen cliente sin esperar dos días reales. La consola se actualiza sola cada 8 segundos.
 
-## 8. Desplegar en Render
+## 8. Desplegar en Render Free
 
-1. Sube el repositorio a GitHub. El `.gitignore` ya excluye `.env` y `node_modules`.
-2. En Render: **New → Blueprint** y elige el repositorio. `render.yaml` crea el servicio web y una base PostgreSQL gratuita.
-3. Llena en el panel:
-   - **`ADMIN_PASSWORD`** (obligatoria).
-   - La clave de IA, si usarán una.
-   - `N8N_WEBHOOK_URL` y `N8N_WEBHOOK_SECRET`, si usarán correos con n8n ([guía](n8n/README.md)).
-4. Al terminar quedan dos direcciones: `https://TU-SERVICIO.onrender.com` (consola, pide contraseña) y `.../portal` (público).
+Consulta [docs/RENDER.md](docs/RENDER.md) para el procedimiento completo.
 
-**Detalles del plan gratuito:**
+1. Regístrate en Render con GitHub y elige **New → Blueprint**.
+2. Conecta el repositorio y selecciona `main`. `render.yaml` crea solo un servicio
+   web gratuito; conserva PostgreSQL en Tiger Data.
+3. Completa `DATABASE_URL`, `GEMINI_API_KEY` y una contraseña exclusiva en
+   `ADMIN_PASSWORD`. Los secretos se guardan en Render, nunca en GitHub.
+4. Al terminar, usa `https://TU-SERVICIO.onrender.com/` para la consola y
+   `https://TU-SERVICIO.onrender.com/portal#/cotizar` para el cliente.
 
-- El servicio se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en despertar. Ábranlo antes de la demo.
-- La base gratuita dura 30 días, suficiente para el hackatón.
-- Con `SEED_DEMO=true`, si la base está vacía al arrancar se cargan los datos de demostración.
-- El portal tiene un límite de solicitudes por IP.
-- Para n8n en la nube y el backend en Render, el webhook debe ser una URL pública. Un n8n en tu Mac no es alcanzable desde Render.
+El plan Free se duerme tras 15 minutos sin tráfico y tarda aproximadamente un
+minuto en despertar: ábrelo antes de la demo. El asistente deja de revisar casos
+mientras el servicio duerme. Los datos permanecen en Tiger Data. El despliegue
+arranca en modo borrador y no carga automáticamente nuevos datos de demostración.
+
+Para los correos al cliente con n8n, agrega `N8N_WEBHOOK_URL` (webhook público HTTPS) y `N8N_WEBHOOK_SECRET` en las variables del servicio ([guía](n8n/README.md)).
 
 ## 9. Cómo se usa la IA
 
@@ -360,7 +364,7 @@ Hora: 9 oct 2026, 16:00 UTC. Archivo: `recomendaciones.json` (`npm run evaluate:
 kit/                       archivos públicos del reto
 recomendaciones.json       salida oficial de los casos públicos
 NOTA_TECNICA.md            nota técnica de una página
-render.yaml                despliegue en Render (web + PostgreSQL)
+render.yaml                despliegue en Render Free (web; usa Tiger Data)
 n8n/                       flujos importables Webhook → Gmail o SMTP y su guía
 backend/
   src/domain/              validación, estado, reglas, política, guardián, perfil del cliente,

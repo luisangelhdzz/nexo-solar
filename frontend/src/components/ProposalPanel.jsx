@@ -70,7 +70,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
   return (
     <section className="panel proposal-panel" aria-label="Atender solicitud y conversar con el cliente">
       <div className="section-head"><h3>{state.proposal_pending ? 'Preparar propuesta' : 'Atender al cliente'}</h3><p className="muted">Lo que publiques aquí estará disponible en el portal del cliente.</p></div>
-      {intake && <>
+      {intake && <details className="request-details"><summary>Ver datos de la solicitud</summary>
         <p className="request-goal">{intake.goal}</p>
         <dl className="request-facts">
           <div><dt>Contacto</dt><dd>{intake.contact_name}</dd></div>
@@ -80,7 +80,7 @@ export default function ProposalPanel({ detail, onUpdate, busy }) {
           <div><dt>Medio preferido</dt><dd>{CHANNEL[intake.contact_channel]} · {intake.contact_channel === 'email' ? intake.email : intake.phone}</dd></div>
           <div><dt>Permiso de contacto</dt><dd>{state.contact_allowed ? 'Autorizado' : 'No autorizado'}{state.contact_not_before ? ` · a partir del ${fmtUtc(state.contact_not_before)}` : ''}</dd></div>
         </dl>
-      </>}
+      </details>}
       <EmailLog detail={detail} />
       {error && <p className="proposal-error" role="alert">{error}</p>}
       {blocked && <p className="muted">El envío no está disponible ahora. Revisa las restricciones y el siguiente paso recomendado.</p>}
