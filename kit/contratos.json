@@ -1,0 +1,76 @@
+{
+  "required_event_fields": {
+    "event_id": "string",
+    "case_id": "string",
+    "event_type": "enum",
+    "occurred_at": "ISO8601 UTC",
+    "data": "object"
+  },
+  "data_by_event_type": {
+    "case.opened": {
+      "status": "open",
+      "proposal_amount_mxn": "number"
+    },
+    "proposal.viewed": {
+      "section": "string"
+    },
+    "message.received": {
+      "message": "string"
+    },
+    "action.executed": {
+      "action": [
+        "contact",
+        "request_information"
+      ]
+    },
+    "constraint.updated": {
+      "contact_allowed": "optional boolean",
+      "contact_not_before": "optional ISO8601 UTC; at least one field required"
+    },
+    "case.closed": {
+      "status": [
+        "accepted",
+        "rejected",
+        "cancelled"
+      ]
+    }
+  },
+  "actions": [
+    "contact",
+    "request_information",
+    "resolve_objection",
+    "escalate",
+    "wait",
+    "no_action"
+  ],
+  "timings": [
+    "immediate",
+    "within_24h",
+    "at_date",
+    "on_new_information",
+    "not_applicable"
+  ],
+  "recommendation_required_fields": [
+    "case_id",
+    "action",
+    "timing",
+    "scheduled_for",
+    "reason",
+    "evidence_event_ids",
+    "confidence",
+    "confidence_reason",
+    "risk_level",
+    "requires_human_review",
+    "missing_information"
+  ],
+  "levels": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "defaults": {
+    "contact_allowed": true,
+    "contact_not_before": null
+  },
+  "state_semantics": "Apply ordered events. constraint.updated overwrites only provided fields. case.closed is terminal. Deduplicate by event_id before changing state."
+}

@@ -1,0 +1,16 @@
+{"event_id": "P01-e1", "case_id": "P01", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P01-e2", "case_id": "P01", "event_type": "message.received", "occurred_at": "2026-10-09T15:00:00Z", "data": {"message": "¿La propuesta incluye instalación?"}}
+{"event_id": "P02-e1", "case_id": "P02", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P02-e2", "case_id": "P02", "event_type": "proposal.viewed", "occurred_at": "2026-10-09T15:00:00Z", "data": {"section": "price"}}
+{"event_id": "P02-e2", "case_id": "P02", "event_type": "proposal.viewed", "occurred_at": "2026-10-09T15:00:00Z", "data": {"section": "price"}}
+{"event_id": "P03-e1", "case_id": "P03", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P03-e2", "case_id": "P03", "event_type": "message.received", "occurred_at": "2026-10-09T15:00:00Z", "data": {"message": "No me contacten antes del 12 de octubre a las 15:00 UTC."}}
+{"event_id": "P03-e3", "case_id": "P03", "event_type": "constraint.updated", "occurred_at": "2026-10-09T15:00:00Z", "data": {"contact_not_before": "2026-10-12T15:00:00Z"}}
+{"event_id": "P04-e1", "case_id": "P04", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P04-e2", "case_id": "P04", "event_type": "message.received", "occurred_at": "2026-10-09T15:00:00Z", "data": {"message": "Me interesa conocer más."}}
+{"event_id": "P04-e3", "case_id": "P04", "event_type": "constraint.updated", "occurred_at": "2026-10-09T15:00:00Z", "data": {"contact_allowed": false}}
+{"event_id": "P05-e1", "case_id": "P05", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P05-e2", "case_id": "P05", "event_type": "message.received", "occurred_at": "2026-10-09T15:00:00Z", "data": {"message": "Estoy comparando opciones."}}
+{"event_id": "P05-e3", "case_id": "P05", "event_type": "case.closed", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "accepted"}}
+{"event_id": "P06-e1", "case_id": "P06", "event_type": "case.opened", "occurred_at": "2026-10-09T15:00:00Z", "data": {"status": "open", "proposal_amount_mxn": 150000}}
+{"event_id": "P06-e2", "case_id": "P06", "event_type": "action.executed", "occurred_at": "2026-10-09T14:00:00Z", "data": {"action": "contact"}}

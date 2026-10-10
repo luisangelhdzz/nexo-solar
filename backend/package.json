@@ -1,0 +1,23 @@
+{
+  "name": "nexo-solar-backend",
+  "version": "1.0.0",
+  "description": "Motor de decisiones para propuestas comerciales (reto ByeCode: What Should Happen Next?)",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test --test-reporter=spec",
+    "evaluate": "node src/cli/evaluate.js",
+    "db:init": "node src/storage/init-db.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "case_id": "P03",
+    "action": "wait",
+    "timing": "at_date",
+    "scheduled_for": "2026-10-12T15:00:00Z",
+    "reason": "El cliente pidió esperar hasta esa fecha. Reevaluar entonces.",
+    "evidence_event_ids": [
+      "P03-e2",
+      "P03-e3"
+    ],
+    "confidence": "high",
+    "confidence_reason": "Solicitud temporal explícita y restricción estructurada coinciden; no conocemos intención de compra.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": []
+  }
+]

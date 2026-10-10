@@ -1,0 +1,17 @@
+# Opcional: levanta PostgreSQL para el proyecto.
+#   docker compose up -d
+# Luego en backend/.env:
+#   DATABASE_URL=postgres://nexo:nexo@localhost:5432/nexo_solar
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: nexo
+      POSTGRES_PASSWORD: nexo
+      POSTGRES_DB: nexo_solar
+    ports:
+      - "5432:5432"
+    volumes:
+      - nexo_data:/var/lib/postgresql/data
+volumes:
+  nexo_data:

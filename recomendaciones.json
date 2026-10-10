@@ -1,0 +1,104 @@
+[
+  {
+    "case_id": "P01",
+    "action": "resolve_objection",
+    "timing": "immediate",
+    "scheduled_for": null,
+    "reason": "El cliente preguntó sobre la instalación (P01-e2). Aclarar la duda de forma breve, sin presionar la compra.",
+    "evidence_event_ids": [
+      "P01-e2"
+    ],
+    "confidence": "high",
+    "confidence_reason": "Basada en un mensaje explícito interpretado con certeza alta (clasificador de respaldo). Limita la certeza: el mensaje no confirma intención de compra.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": [
+      "Respuesta confirmada sobre la instalación (dato interno)"
+    ]
+  },
+  {
+    "case_id": "P02",
+    "action": "wait",
+    "timing": "at_date",
+    "scheduled_for": "2026-10-11T15:00:00Z",
+    "reason": "El cliente abrió la propuesta una vez (sección: price) pero no ha escrito. Por R5, abrir la propuesta no confirma interés de compra ni justifica urgencia. Reevaluar el 11 oct 2026, 15:00 UTC o antes si llega un mensaje.",
+    "evidence_event_ids": [
+      "P02-e2"
+    ],
+    "confidence": "medium",
+    "confidence_reason": "Solo hay aperturas de la propuesta; no sabemos qué opina el cliente.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": [
+      "Intención de compra del cliente: solo hay aperturas de la propuesta"
+    ]
+  },
+  {
+    "case_id": "P03",
+    "action": "wait",
+    "timing": "at_date",
+    "scheduled_for": "2026-10-12T15:00:00Z",
+    "reason": "El cliente pidió no ser contactado antes del 12 oct 2026, 15:00 UTC (P03-e2). R3: no se puede contactar antes del 12 oct 2026, 15:00 UTC (P03-e3). Reevaluar en esa fecha.",
+    "evidence_event_ids": [
+      "P03-e2",
+      "P03-e3"
+    ],
+    "confidence": "high",
+    "confidence_reason": "Basada en un mensaje explícito interpretado con certeza alta (clasificador de respaldo). La solicitud del cliente coincide con una restricción estructurada. Limita la certeza: el mensaje no confirma intención de compra.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": []
+  },
+  {
+    "case_id": "P04",
+    "action": "escalate",
+    "timing": "immediate",
+    "scheduled_for": null,
+    "reason": "El cliente pidió más información (P04-e2), pero el contacto con el cliente está prohibido (R2, P04-e3). Escalar para revisión interna; nadie debe comunicarse con el cliente mientras siga la restricción.",
+    "evidence_event_ids": [
+      "P04-e2",
+      "P04-e3"
+    ],
+    "confidence": "medium",
+    "confidence_reason": "Basada en un mensaje explícito interpretado con certeza media (clasificador de respaldo). Limita la certeza: el mensaje no confirma intención de compra. La restricción aplicada (R2) es determinística. No sabemos por qué se prohibió el contacto, por eso decide una persona.",
+    "risk_level": "medium",
+    "requires_human_review": true,
+    "missing_information": [
+      "Qué información específica necesita el cliente",
+      "Motivo y vigencia de la restricción de contacto"
+    ]
+  },
+  {
+    "case_id": "P05",
+    "action": "no_action",
+    "timing": "not_applicable",
+    "scheduled_for": null,
+    "reason": "El caso está cerrado (accepted, P05-e3). Por R1 solo procede no_action; el cierre es definitivo.",
+    "evidence_event_ids": [
+      "P05-e3"
+    ],
+    "confidence": "high",
+    "confidence_reason": "El cierre es un evento estructurado y definitivo.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": []
+  },
+  {
+    "case_id": "P06",
+    "action": "resolve_objection",
+    "timing": "immediate",
+    "scheduled_for": null,
+    "reason": "El cliente preguntó sobre la fecha de entrega (P06-e3). Aclarar la duda de forma breve, sin presionar la compra. R4 no bloquea: el cliente escribió (P06-e3) después del último contacto (P06-e2).",
+    "evidence_event_ids": [
+      "P06-e3",
+      "P06-e2"
+    ],
+    "confidence": "high",
+    "confidence_reason": "Basada en un mensaje explícito interpretado con certeza alta (clasificador de respaldo). Limita la certeza: el mensaje no confirma intención de compra.",
+    "risk_level": "low",
+    "requires_human_review": false,
+    "missing_information": [
+      "Respuesta confirmada sobre la fecha de entrega (dato interno)"
+    ]
+  }
+]
