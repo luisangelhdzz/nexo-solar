@@ -15,6 +15,9 @@ El sistema recibe los eventos de cada cotización: apertura, vistas, mensajes de
 
 Un solo servidor sirve dos pantallas:
 
+Para publicarlo en Vultr con Docker, HTTPS y la base existente de Tiger Data,
+consulta [la guía de despliegue](docs/VULTR.md).
+
 | Dirección | Para quién | Qué hace |
 |---|---|---|
 | `/` | Equipo comercial y jueces | Consola: resumen de inacción, casos, clientes, reglas, exportación JSON |
